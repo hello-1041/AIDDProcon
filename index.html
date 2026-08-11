@@ -1,15 +1,49 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TextAlive App API Starter</title>
+    <title>MizukiRhythm</title>
   </head>
   <body>
     <div id="app">
-      <h1>TextAlive App API Starter</h1>
-      <p id="status">初期化中...</p>
+      <!-- TextAlive Player のメディア要素（音声再生・クレジットバナー表示先） -->
+      <div id="media"></div>
+
+      <section id="screen-title" class="screen">
+        <h1 id="title-logo">MizukiRhythm</h1>
+        <p class="title-desc">
+          音楽のリズムに合わせてクリック！<br />
+          石を遠くまで飛ばしてハイスコアを狙おう
+        </p>
+        <button id="btn-start" disabled>クリックしてスタート</button>
+      </section>
+
+      <section id="screen-play" class="screen">
+        <!-- 開発ビルドでのみ表示する楽曲再生位置のシークバー（main.tsが制御） -->
+        <input type="range" id="debug-seek" class="debug-seek" min="0" max="0" value="0" step="1" />
+        <div id="hud-best-label" class="hud hud-left">
+          自己ベスト: <span id="hud-best">0m</span>
+        </div>
+        <div id="hud-current-label" class="hud hud-current">
+          現在: <span id="hud-current">0m</span>
+        </div>
+        <button id="btn-pause" class="hud hud-pause">⏸ 一時停止</button>
+        <canvas id="game-canvas"></canvas>
+        <div id="judge-popup"></div>
+        <!-- 開発ビルドでのみ表示するタイミング確認用デバッグ表示（main.tsが制御） -->
+        <div id="debug-hud" class="debug-hud"></div>
+      </section>
+
+      <section id="screen-result" class="screen">
+        <h1>結果発表</h1>
+        <p id="result-score"></p>
+        <div class="result-buttons">
+          <button id="btn-retry">もう一度遊ぶ</button>
+          <button id="btn-title">タイトルに戻る</button>
+        </div>
+      </section>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

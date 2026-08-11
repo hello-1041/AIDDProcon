@@ -1,24 +1,206 @@
 :root {
   font: 16px/1.6 system-ui, "Segoe UI", Roboto, sans-serif;
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
+html,
 body {
   margin: 0;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 100%;
+  overflow: hidden;
+  background: #eaf6ff;
+  color: #1c3a52;
 }
 
 #app {
-  max-width: 32rem;
-  padding: 2rem;
-  text-align: center;
+  position: relative;
+  width: 100%;
+  height: 100%;
 }
 
-#status {
-  padding: 1rem;
-  border: 1px solid #8884;
+/* TextAlive Player のメディア要素。音声再生とクレジットバナー（.textalive-banner）の
+   表示先。バナー自体は非表示にしない（利用規約上の要件）。
+   前回「.textalive-banner以外の子要素を隠す」対応をしたが、バナーが直接の子要素とは
+   限らず、意図せずバナーごと隠してしまい完全に見えなくなる regression を起こした。
+   そのため子要素を選んで隠すのはやめ、代わりに背景を透明にすることで、内容より
+   広い領域があっても黒い余白としては見えないようにする（内容自体は隠さない）。 */
+#media {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  font-size: 0.75rem;
+  background: transparent;
+}
+
+/* 画面切り替え */
+.screen {
+  display: none;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+.screen--active {
+  display: flex;
+}
+
+/* タイトル画面 */
+#title-logo {
+  font-size: 4rem;
+  margin: 0 0 1rem;
+  letter-spacing: 0.05em;
+  color: #ff7a3d;
+  text-shadow: 2px 2px 0 #ffffff, 4px 4px 0 rgba(28, 58, 82, 0.15);
+}
+
+.title-desc {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  margin: 0 0 2rem;
+  color: #2a5678;
+}
+
+button {
+  font: inherit;
+  font-size: 1.1rem;
+  padding: 0.75rem 2rem;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  background: #ffcc33;
+  color: #1a1a2e;
+  font-weight: 700;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* プレイ画面 */
+#screen-play {
+  position: relative;
+  padding: 0;
+}
+
+#game-canvas {
+  display: block;
+  background: #dff3ff;
+}
+
+.hud {
+  position: absolute;
+  top: 1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 0.4rem 0.9rem;
   border-radius: 0.5rem;
+  background: rgba(10, 14, 26, 0.6);
+  color: #eef2ff;
+  z-index: 10;
+}
+
+.hud-left {
+  left: 1rem;
+}
+
+.hud-current {
+  top: 3.4rem; /* 自己ベストの下に並べる（距離表示を左上に集約） */
+  left: 1rem;
+}
+
+.hud-pause {
+  top: 1rem;
+  right: 1rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* 汎用のbutton:hoverはtransformでボタンを持ち上げるが、.hud-pauseは絶対配置の
+   座標指定にtransformを使わないため、ホバー時に位置がブレることはない。
+   念のためtransformを明示的に打ち消し、色の変化のみで反応を示す。 */
+.hud-pause:hover:not(:disabled) {
+  transform: none;
+  background: rgba(10, 14, 26, 0.8);
+}
+
+/* 開発用タイミング確認表示。デフォルトでは非表示（main.tsがDEVビルド時のみblockにする）。 */
+.debug-hud {
+  display: none;
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  font-size: 0.75rem;
+  font-family: monospace;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.3rem;
+  background: rgba(10, 14, 26, 0.6);
+  color: #eef2ff;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* 開発用の楽曲再生位置シークバー。デフォルトでは非表示（main.tsがDEVビルド時のみblockにする）。 */
+.debug-seek {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  margin: 0;
+  z-index: 20;
+}
+
+#judge-popup {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2rem;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.45), 0 0 2px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 10;
+}
+
+#judge-popup.judge-popup--visible {
+  animation: judge-fade 0.5s ease-out forwards;
+}
+
+@keyframes judge-fade {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) translateY(-30px);
+  }
+}
+
+/* リザルト画面 */
+#result-score {
+  font-size: 3rem;
+  font-weight: 800;
+  margin: 0.5rem 0 2rem;
+  color: #ff7a3d;
+}
+
+.result-buttons {
+  display: flex;
+  gap: 1rem;
 }
