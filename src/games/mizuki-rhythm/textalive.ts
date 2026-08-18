@@ -38,31 +38,23 @@ function notifyReadyIfComplete(onReady: () => void): void {
   if (videoReady && timerReady) onReady();
 }
 
+// 一度だけonSongEndを呼ぶための共通ガード。checkSongEndとonStop（下記createPlayer参照）の
+// 両方から呼ばれうるため、ここに集約する。
+function finishSong(onSongEnd: () => void): void {
+  if (!started || ended) return;
+  ended = true;
+  onSongEnd();
+}
+
 // 曲の終端に達したかどうかを判定し、達していれば一度だけonSongEndを呼ぶ。
-// onTimeUpdateイベント任せだと、実際の再生が自然停止する直前の最後のイベントの時点で
-// まだ position が endTime に届いておらず、以降イベントそのものが発火しなくなることが
-// あり、終了を検知できずに画面がプレイ中のまま固まる不具合があった（クリックしても
-// ビート情報が見つからずMissになり続け、着水先のビートも見つからないため既定の短い
-// 跳躍間隔にフォールバックし続けて高速で上下運動して見える、という2つの不具合の原因
-// だった）。onTimeUpdateからだけでなく、main.tsのrequestAnimationFrameループから毎フレーム
-// 呼んでもらうことで、より確実に検知できるようにする。
+// onTimeUpdateからだけでなく、main.tsのrequestAnimationFrameループから毎フレーム呼んで
+// もらうことで、より速く検知できるようにする（ただし下記の理由により、これだけでは
+// 検知できないケースがあることが判明したため、createPlayer内のonStopが本命の検知経路）。
 export function checkSongEnd(player: Player, songPosition: number, onSongEnd: () => void): void {
   if (!started || ended) return;
   const endTime = player.video.endTime;
   if (!Number.isFinite(endTime) || endTime <= 0) return;
-  if (songPosition >= endTime) {
-    ended = true;
-    onSongEnd();
-  }
-}
-
-// player.video.endTimeが実際の再生時間と一致しない曲では、position >= endTimeが
-// 一度も成立しないまま再生が止まってしまうことがある（checkSongEndのポーリング化だけ
-// では解消しなかった不具合）。main.tsの再生位置停滞検知フォールバックが先に終了と
-// 判定した場合に呼び、以後checkSongEndが（万が一遅れて条件を満たしても）二重に
-// onSongEndを呼ばないようにする。
-export function markSongEnded(): void {
-  ended = true;
+  if (songPosition >= endTime) finishSong(onSongEnd);
 }
 
 export function createPlayer(
@@ -99,6 +91,18 @@ export function createPlayer(
     },
     onTimeUpdate: (position: number) => {
       checkSongEnd(player, position, onSongEnd);
+    },
+    // textalive-app-apiの内部実装（node_modules/textalive-app-api/dist/index.es.js）を
+    // 確認したところ、再生位置がplayer.video.duration（実際の音声の長さ）に達すると、
+    // ライブラリが自ら timer.stop() を呼んでいる。この stop() は onStop を発火させる前に
+    // seek(0) で再生位置を0へ巻き戻すため、player.video.endTime が duration より
+    // 大きい曲では checkSongEnd の `position >= endTime` が一度も成立しないまま
+    // 位置が0に戻ってしまい、終了を検知できずプレイ中の画面のまま固まっていた
+    // （曲終了時にリザルト画面へ遷移しない不具合の原因）。onStopはこの巻き戻しの直前に
+    // ライブラリ自身が発火する、position比較に依存しない確実な終了シグナルなので、
+    // これを本命の検知経路として使う。
+    onStop: () => {
+      finishSong(onSongEnd);
     },
   });
 
