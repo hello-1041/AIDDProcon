@@ -5,11 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MizukiRhythm</title>
+    <!-- ブロック崩し（block-kuzushi）専用のドット風フォント -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="app">
       <!-- TextAlive Player のメディア要素（音声再生・クレジットバナー表示先） -->
       <div id="media"></div>
+      <!-- ブロック崩し（block-kuzushi）専用の第2のPlayerインスタンス用メディア要素。
+           水切リズムの#mediaとはグローバルIDを分離し、独立して音声再生・バナー表示を行う。 -->
+      <div id="bk-media"></div>
 
       <section id="screen-menu" class="screen screen--active">
         <h1 id="menu-logo">GAME MENU</h1>
@@ -19,6 +29,12 @@
             <button class="game-entry" data-game="mizuki-rhythm">
               <span class="game-entry-title">水切リズム</span>
               <span class="game-entry-desc">音楽のリズムに合わせてクリック！石を遠くまで飛ばそう</span>
+            </button>
+          </li>
+          <li>
+            <button class="game-entry" data-game="block-kuzushi">
+              <span class="game-entry-title">ブロック崩し</span>
+              <span class="game-entry-desc">歌詞ブロックをボールで崩そう！全部集めてクリアを目指せ</span>
             </button>
           </li>
           <li>
@@ -62,6 +78,39 @@
           <div class="result-buttons">
             <button id="btn-retry">もう一度遊ぶ</button>
             <button id="btn-title">タイトルに戻る</button>
+          </div>
+        </section>
+      </div>
+
+      <div id="game-block-kuzushi" class="game-section">
+        <section id="bk-screen-title" class="screen">
+          <h1 id="bk-title-logo">ブロック崩し</h1>
+          <p class="bk-title-desc">
+            歌詞ブロックをボールで崩そう！<br />
+            全部集めてクリアを目指せ
+          </p>
+          <button id="bk-btn-start" disabled>クリックしてスタート</button>
+          <button id="bk-btn-menu" class="btn-secondary">メニューに戻る</button>
+        </section>
+
+        <section id="bk-screen-play" class="screen">
+          <div class="bk-header">
+            <span>取得率: <span id="bk-hud-score">0%</span></span>
+            <span class="bk-header-next">次: <span id="bk-hud-next-word">-</span></span>
+            <button id="bk-btn-pause">⏸ 一時停止</button>
+          </div>
+          <div class="bk-canvas-wrap">
+            <canvas id="bk-canvas"></canvas>
+          </div>
+        </section>
+
+        <section id="bk-screen-result" class="screen">
+          <h1>結果発表</h1>
+          <p id="bk-result-score"></p>
+          <div id="bk-result-words" class="bk-result-words"></div>
+          <div class="result-buttons">
+            <button id="bk-btn-retry">もう一度遊ぶ</button>
+            <button id="bk-btn-title">タイトルに戻る</button>
           </div>
         </section>
       </div>

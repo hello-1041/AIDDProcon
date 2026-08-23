@@ -1,0 +1,130 @@
+/* ブロック崩し（block-kuzushi）専用スタイル。水切リズムとは配色・レイアウト
+   （縦長／ドット風フォント）が大きく異なるため、独立したファイルに分離する。
+   汎用ルール（.screen/.screen--active/.game-section/.btn-secondary/素のbutton）は
+   src/style.css のものをそのまま流用し、ここには持ち込まない。 */
+
+#game-block-kuzushi {
+  font-family: "DotGothic16", "Courier New", monospace;
+  /* .bk-headerの実高さと一致させる。.bk-canvas-wrapのフルードレイアウト計算にも使う */
+  --bk-header-height: 72px;
+}
+
+#bk-title-logo {
+  font-size: 3rem;
+  margin: 0 0 1rem;
+  letter-spacing: 0.05em;
+  color: #ff5da2;
+  text-shadow: 2px 2px 0 #12121c;
+}
+
+.bk-title-desc {
+  font-size: 1rem;
+  line-height: 1.8;
+  margin: 0 0 2rem;
+  color: #cdd6f4;
+}
+
+#bk-screen-title,
+#bk-screen-result {
+  background: #12121c;
+  color: #fff6fb;
+}
+
+/* 汎用.btn-secondaryの文字色（#2a5678）は暗い背景では視認性が低いため、
+   このゲームのスクリーン内でのみ配色を上書きする */
+#game-block-kuzushi .btn-secondary {
+  color: #fff6fb;
+  box-shadow: inset 0 0 0 2px #fff6fb;
+}
+
+#bk-result-score {
+  font-size: 3rem;
+  font-weight: 800;
+  margin: 0.5rem 0 2rem;
+  color: #ff5da2;
+}
+
+#bk-screen-play {
+  position: relative;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  background: #12121c;
+}
+
+.bk-header {
+  height: var(--bk-header-height);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 1rem;
+  color: #fff6fb;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.bk-header-next {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  color: #4de2ff;
+}
+
+#bk-btn-pause {
+  font-size: 0.9rem;
+  padding: 0.4rem 1rem;
+}
+
+.bk-canvas-wrap {
+  width: min(100%, calc((100dvh - var(--bk-header-height)) * (400 / 620)));
+  aspect-ratio: 400 / 620;
+  margin: 0 auto;
+}
+
+#bk-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #12121c;
+}
+
+/* リザルト画面：全単語を原曲順に表示。取得済みは不透明、未取得は半透明 */
+.bk-result-words {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  max-width: min(600px, 90vw);
+  margin: 0 0 2rem;
+}
+
+.bk-result-word {
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.4rem;
+  background: #2a1420;
+  color: #fff6fb;
+  font-size: 0.9rem;
+  opacity: 0.35;
+}
+
+.bk-result-word--collected {
+  opacity: 1;
+  background: #ff5da2;
+  color: #12121c;
+}
+
+/* #mediaと同じ透過方針。バナー同士が重ならないよう表示位置だけずらす */
+#bk-media {
+  position: fixed;
+  right: 0;
+  bottom: 2.5rem;
+  z-index: 100;
+  font-size: 0.75rem;
+  background: transparent;
+}
