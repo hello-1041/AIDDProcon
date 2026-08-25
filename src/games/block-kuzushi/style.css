@@ -1,7 +1,9 @@
 /* ブロック崩し（block-kuzushi）専用スタイル。水切リズムとは配色・レイアウト
    （縦長／ドット風フォント）が大きく異なるため、独立したファイルに分離する。
    汎用ルール（.screen/.screen--active/.game-section/.btn-secondary/素のbutton）は
-   src/style.css のものをそのまま流用し、ここには持ち込まない。 */
+   src/style.css のものをそのまま流用し、ここには持ち込まない。
+   配色は水切リズムとは別系統（ピンク×水色のポップな配色）だが、明るさの方向性は揃える
+   （初期実装の暗いアーケード配色は「暗い」との指摘を受けて明るく変更した）。 */
 
 #game-block-kuzushi {
   font-family: "DotGothic16", "Courier New", monospace;
@@ -14,27 +16,20 @@
   margin: 0 0 1rem;
   letter-spacing: 0.05em;
   color: #ff5da2;
-  text-shadow: 2px 2px 0 #12121c;
+  text-shadow: 2px 2px 0 #ffffff, 4px 4px 0 rgba(28, 58, 82, 0.15);
 }
 
 .bk-title-desc {
   font-size: 1rem;
   line-height: 1.8;
   margin: 0 0 2rem;
-  color: #cdd6f4;
+  color: #2a5678;
 }
 
 #bk-screen-title,
 #bk-screen-result {
-  background: #12121c;
-  color: #fff6fb;
-}
-
-/* 汎用.btn-secondaryの文字色（#2a5678）は暗い背景では視認性が低いため、
-   このゲームのスクリーン内でのみ配色を上書きする */
-#game-block-kuzushi .btn-secondary {
-  color: #fff6fb;
-  box-shadow: inset 0 0 0 2px #fff6fb;
+  background: #eaf7ff;
+  color: #1c3a52;
 }
 
 #bk-result-score {
@@ -51,7 +46,7 @@
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
-  background: #12121c;
+  background: #eaf7ff;
 }
 
 .bk-header {
@@ -62,7 +57,7 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 0 1rem;
-  color: #fff6fb;
+  color: #1c3a52;
   font-size: 0.95rem;
   font-weight: 700;
 }
@@ -73,7 +68,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
-  color: #4de2ff;
+  color: #1c7ed6;
 }
 
 #bk-btn-pause {
@@ -91,7 +86,12 @@
   display: block;
   width: 100%;
   height: 100%;
-  background: #12121c;
+  background: #eaf7ff;
+  box-sizing: border-box;
+  /* PCでは横幅いっぱいに広がらずゲーム範囲がわかりづらいという指摘への対応。
+     スマホ表示でも違和感の出ない太さに留める。 */
+  border: 3px solid #1c3a52;
+  border-radius: 0.5rem;
 }
 
 /* リザルト画面：全単語を原曲順に表示。取得済みは不透明、未取得は半透明 */
@@ -107,16 +107,16 @@
 .bk-result-word {
   padding: 0.25rem 0.6rem;
   border-radius: 0.4rem;
-  background: #2a1420;
-  color: #fff6fb;
+  background: #ffe1ee;
+  color: #1c3a52;
   font-size: 0.9rem;
-  opacity: 0.35;
+  opacity: 0.4;
 }
 
 .bk-result-word--collected {
   opacity: 1;
   background: #ff5da2;
-  color: #12121c;
+  color: #ffffff;
 }
 
 /* #mediaと同じ透過方針。バナー同士が重ならないよう表示位置だけずらす */

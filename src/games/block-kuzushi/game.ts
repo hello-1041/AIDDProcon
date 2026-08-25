@@ -154,12 +154,19 @@ function updatePaddlePosition(state: GameState, dtMs: number): void {
 // 歌詞が密な区間では、startTimeから逆算した理想生成時刻ではなく、「空きスロットができた
 // 瞬間に、まだ生成していない単語を順番に生成する」方式にする（製造計画書で合意済みの
 // 簡略化。歌の発声タイミングとのズレが生じうる）。
+// ただし、この「空きスロットができた瞬間」を無条件の生成条件にすると、ゲーム開始直後
+// （イントロ中、歌詞がまだ始まっていない時刻）に全レーンが同時に空いているため、
+// 最初の3単語が本来歌われるタイミングを無視して一斉に降り始めてしまう不具合があった。
+// 単語の実際のstartTimeに落下時間（FALL_DURATION_MS）分だけ手前になるまでは生成を待つ
+// ことで、この「イントロで先落ちする」問題を解消する（歌詞が密な区間では、この条件は
+// 既に満たされているため、従来通り即時生成される）。
 function trySpawnBlocks(state: GameState, songPosition: number): void {
   for (let lane = 0; lane < MAX_CONCURRENT_BLOCKS; lane++) {
     if (state.wordCursor >= state.wordEntries.length) return;
     if (state.blocks.some((b) => b.lane === lane)) continue;
 
     const entry = state.wordEntries[state.wordCursor];
+    if (songPosition < entry.startTime - FALL_DURATION_MS) return;
     const hitPoints = computeHitPoints(entry.charCount, entry.kanjiRatio);
     state.blocks.push({
       wordIndex: state.wordCursor,
@@ -205,6 +212,11 @@ function resolveBallPaddleCollision(state: GameState): void {
 }
 
 // X/Y貫通量比較で反射軸を決める簡易手法。衝突していればtrueを返す。
+// 反射後、ボールをブロックの外側へ押し出す（位置補正）ことが重要：これを省略すると、
+// 速度を反転させただけではボールが1フレームでブロックの外まで抜けきらず、次のフレームでも
+// 同じブロックとの重なりが検出されて再度ヒット判定されてしまう。この「1回の跳ね返りで
+// 複数フレームぶん多重にhitPointsが減る」不具合により、本来複数回当てないと壊れないはずの
+// 漢字・多文字数のブロックが一度の接触で壊れて見えていた。
 function resolveBallBlockCollision(ball: BallState, rect: BlockRect): boolean {
   const ballLeft = ball.x - BALL_RADIUS;
   const ballRight = ball.x + BALL_RADIUS;
@@ -222,8 +234,13 @@ function resolveBallBlockCollision(ball: BallState, rect: BlockRect): boolean {
   const overlapX = Math.min(ballRight, rectRight) - Math.max(ballLeft, rectLeft);
   const overlapY = Math.min(ballBottom, rectBottom) - Math.max(ballTop, rectTop);
 
-  if (overlapX < overlapY) ball.vx = -ball.vx;
-  else ball.vy = -ball.vy;
+  if (overlapX < overlapY) {
+    ball.vx = -ball.vx;
+    ball.x = ball.x < rectLeft + rect.width / 2 ? rectLeft - BALL_RADIUS : rectRight + BALL_RADIUS;
+  } else {
+    ball.vy = -ball.vy;
+    ball.y = ball.y < rectTop + rect.height / 2 ? rectTop - BALL_RADIUS : rectBottom + BALL_RADIUS;
+  }
   return true;
 }
 

@@ -114,19 +114,28 @@ export function init(onBack: () => void): void {
     const dtMs = lastFrameTime === null ? 0 : Math.min(now - lastFrameTime, MAX_DT_MS);
     lastFrameTime = now;
 
-    if (!paused) {
-      const songPosition = player.timer.position;
-      textalive.checkSongEnd(player, songPosition, handleSongEnd);
+    // 1フレームの処理中に想定外の例外が起きても、requestAnimationFrame(loop)への
+    // 再スケジュールだけは必ず行う。ここを素通りにしてtry/catch無しのままにすると、
+    // 例外発生フレームでループそのものが完全に停止し、画面が固まったまま操作も効かなく
+    // なる（実際に発生が確認された不具合）。原因を1箇所に断定できなかったため、
+    // 対症療法ではなく「1フレームの失敗でゲーム全体を道連れにしない」構造で対応する。
+    try {
+      if (!paused) {
+        const songPosition = player.timer.position;
+        textalive.checkSongEnd(player, songPosition, handleSongEnd);
 
-      if (state.screen === "play") {
-        game.update(state, songPosition, dtMs);
+        if (state.screen === "play") {
+          game.update(state, songPosition, dtMs);
 
-        ui.updateScoreHud(game.getScorePercent(state));
-        const nextEntry = state.wordEntries[state.wordCursor];
-        ui.updateNextWordPreview(nextEntry ? nextEntry.text : null);
+          ui.updateScoreHud(game.getScorePercent(state));
+          const nextEntry = state.wordEntries[state.wordCursor];
+          ui.updateNextWordPreview(nextEntry ? nextEntry.text : null);
 
-        render.drawFrame(ctx, state, songPosition);
+          render.drawFrame(ctx, state, songPosition);
+        }
       }
+    } catch (error) {
+      console.error("[BlockKuzushi] frame update failed:", error);
     }
     requestAnimationFrame(loop);
   };
