@@ -1,0 +1,209 @@
+/* 歌詞コンソール（lyric-console）専用スタイル。汎用ルール（.screen/.screen--active/
+   .game-section等）はsrc/style.cssをそのまま流用し、ここには持ち込まない。
+   ただし本コンテンツは疑似ターミナル（ネオン発光・走査線・等幅フォント）という
+   他2作と大きく異なる意匠のため、button等の共通要素も#game-lyric-consoleスコープで
+   上書きする（黄色ピル型のままではネオン端末の雰囲気と衝突するため）。 */
+
+#game-lyric-console {
+  font-family: "DotGothic16", "Courier New", monospace;
+  background: #0a0e0a;
+  color: #f2f2f2;
+  /* Colorテーマの既定値（GREEN）。data-lc-color未設定時、または属性セレクタが
+     一致しない場合でもこの値にフォールバックする。 */
+  --lc-fg: #39ff14;
+  --lc-glow: 0 0 2px rgba(57, 255, 20, 0.9), 0 0 6px rgba(57, 255, 20, 0.6),
+    0 0 14px rgba(57, 255, 20, 0.35);
+}
+
+#game-lyric-console[data-lc-color="AMBER"] {
+  --lc-fg: #ffb000;
+  --lc-glow: 0 0 2px rgba(255, 176, 0, 0.9), 0 0 6px rgba(255, 176, 0, 0.6),
+    0 0 14px rgba(255, 176, 0, 0.35);
+}
+
+#game-lyric-console[data-lc-color="WHITE"] {
+  --lc-fg: #f2f2f2;
+  --lc-glow: 0 0 2px rgba(255, 255, 255, 0.8), 0 0 6px rgba(255, 255, 255, 0.5),
+    0 0 14px rgba(255, 255, 255, 0.25);
+}
+
+#game-lyric-console[data-lc-color="CYAN"] {
+  --lc-fg: #00e5ff;
+  --lc-glow: 0 0 2px rgba(0, 229, 255, 0.9), 0 0 6px rgba(0, 229, 255, 0.6),
+    0 0 14px rgba(0, 229, 255, 0.35);
+}
+
+#game-lyric-console[data-lc-font="WIDE"] .lc-terminal {
+  letter-spacing: 0.25em;
+}
+
+#game-lyric-console[data-lc-font="COMPACT"] .lc-terminal {
+  letter-spacing: -0.03em;
+}
+
+#lc-title-logo {
+  font-size: 2.4rem;
+  margin: 0 0 1rem;
+  letter-spacing: 0.1em;
+  color: var(--lc-fg);
+  text-shadow: var(--lc-glow);
+}
+
+.lc-title-desc {
+  font-size: 1rem;
+  line-height: 1.8;
+  margin: 0 0 1.5rem;
+  color: #cfe8cf;
+}
+
+.lc-setting-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1.25rem;
+}
+
+.lc-setting-label {
+  font-size: 0.9rem;
+  letter-spacing: 0.15em;
+  color: #8fa08f;
+}
+
+.lc-option-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* button自体の意匠を、黄色ピル型からターミナル風（角ばった枠線・等幅フォント）に
+   上書きする。ゲーム全体の共通buttonルール（src/style.css）はここでは使わない。 */
+#game-lyric-console button {
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 0.5rem 1.2rem;
+  border-radius: 0.15rem;
+  border: 2px solid #3a4a3a;
+  background: #0a0e0a;
+  color: #cfe8cf;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#game-lyric-console button:hover:not(:disabled) {
+  border-color: var(--lc-fg);
+  color: var(--lc-fg);
+  transform: none;
+}
+
+#game-lyric-console button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.lc-option-btn--active {
+  border-color: var(--lc-fg);
+  color: var(--lc-fg);
+  box-shadow: var(--lc-glow);
+}
+
+.lc-btn-secondary {
+  margin-top: 1rem;
+  border-color: #3a4a3a;
+}
+
+/* プレイ画面・リザルト画面 共通の疑似ターミナル */
+#lc-screen-play,
+#lc-screen-result {
+  padding: 1.5rem;
+  box-sizing: border-box;
+  align-items: stretch;
+}
+
+.lc-terminal {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+  text-align: left;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: var(--lc-fg);
+  text-shadow: var(--lc-glow);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 走査線オーバーレイ。控えめな濃さに留める（製造計画書2.1節）。 */
+.lc-terminal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.12) 0px,
+    rgba(0, 0, 0, 0.12) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+.lc-line {
+  min-height: 1.6em;
+}
+
+.lc-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1em;
+  margin-left: 0.1em;
+  background: var(--lc-fg);
+  box-shadow: var(--lc-glow);
+  vertical-align: text-bottom;
+  animation: lc-blink 0.53s steps(1) infinite;
+}
+
+@keyframes lc-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.lc-progress {
+  margin-top: 0.75rem;
+  font-size: 0.95rem;
+  color: var(--lc-fg);
+  text-shadow: var(--lc-glow);
+  white-space: pre;
+}
+
+/* リザルト画面：統計情報はシャットダウンタイプ完了までフェード待機させる */
+.lc-result-stats {
+  margin-top: 0.75rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.lc-result-stats--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.lc-result-stats p {
+  margin: 0.2rem 0;
+  color: var(--lc-fg);
+}
+
+/* #media/#bk-mediaと同じ透過方針。バナー同士が重ならないよう表示位置だけずらす */
+#lc-media {
+  position: fixed;
+  right: 0;
+  bottom: 5rem;
+  z-index: 100;
+  font-size: 0.75rem;
+  background: transparent;
+}
