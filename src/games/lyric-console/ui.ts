@@ -17,7 +17,7 @@ const terminalPlayEl = document.querySelector<HTMLElement>("#lc-terminal-play")!
 const terminalResultEl = document.querySelector<HTMLElement>("#lc-terminal-result")!;
 const progressEl = document.querySelector<HTMLElement>("#lc-progress")!;
 const spinnerEl = document.querySelector<HTMLElement>("#lc-spinner")!;
-const vocalMeterEl = document.querySelector<HTMLElement>("#lc-vocal-meter")!;
+const vocalBarEl = document.querySelector<HTMLElement>("#lc-vocal-bar")!;
 
 const resultStatsEl = document.querySelector<HTMLElement>("#lc-result-stats")!;
 const statPlaytimeEl = document.querySelector<HTMLElement>("#lc-stat-playtime")!;
@@ -74,43 +74,106 @@ export function bindMenuButton(onBack: () => void): void {
 //
 // スクロールバーは常にコンソール内で最下部付近にいた場合のみ追従させる
 // （フィードバック1.1）。市民が意図的に上へスクロールしている間は、
-// 新しい行が来ても追従しない。
-const AUTO_SCROLL_THRESHOLD_PX = 20;
+// 新しい行が来ても追従しない。閾値はごく小さくし、少しでも上へ動かせば
+// 追従を解除する（フィードバック：以前は20pxの遊びがあり、かつ後述の毎フレーム
+// DOM再構築と相まって、上へスクロールしようとしても引き戻される不具合があった）。
+const AUTO_SCROLL_THRESHOLD_PX = 1;
 
-// カーソルの点滅は、CSSのanimationではなくJS側で状態を計算して反映する。
-// このコンテンツは毎フレーム（60fps）ターミナルのDOMを丸ごと作り直しており、
-// CSS animationは要素ごとに独立したタイマーを持つため、要素が16msおきに
-// 作り直されるたびにアニメーションが0秒目（不透明）へリセットされ続け、
-// 実質「常に点灯したまま」になってしまう。呼び出し側（index.ts）で
-// `requestAnimationFrame`のタイムスタンプから計算したon/off状態を渡してもらう。
+interface TerminalRenderState {
+  renderedLineCount: number;
+  lastCurrentLine: string | null;
+  lastCursorVisible: boolean | null;
+  cursorLineEl: HTMLElement;
+  cursorTextEl: HTMLElement;
+  cursorGlyphEl: HTMLElement;
+}
+
+// 描画済み状態をコンテナ（プレイ画面／リザルト画面、それぞれの疑似ターミナル）
+// ごとに記憶する。以前はこれを持たず、毎フレーム無条件にDOMを丸ごと作り直して
+// いたため、市民が手動スクロール中でも常にDOMが再構築され続け、スクロール操作
+// そのものを阻害していた（特にタッチ操作でのスクロール慣性と相性が悪い）。
+const terminalRenderStates = new WeakMap<HTMLElement, TerminalRenderState>();
+
+function createCursorLine(): Pick<TerminalRenderState, "cursorLineEl" | "cursorTextEl" | "cursorGlyphEl"> {
+  const cursorLineEl = document.createElement("div");
+  cursorLineEl.className = "lc-line";
+  const cursorTextEl = document.createElement("span");
+  // 点滅はCSSのanimationではなくJS側で状態を計算して反映する（下のcursorGlyphEl参照）。
+  const cursorGlyphEl = document.createElement("span");
+  cursorGlyphEl.className = "lc-cursor";
+  cursorLineEl.appendChild(cursorTextEl);
+  cursorLineEl.appendChild(cursorGlyphEl);
+  return { cursorLineEl, cursorTextEl, cursorGlyphEl };
+}
+
+function appendCompletedLine(containerEl: HTMLElement, beforeEl: HTMLElement, text: string): void {
+  const lineEl = document.createElement("div");
+  lineEl.className = "lc-line";
+  lineEl.textContent = text;
+  containerEl.insertBefore(lineEl, beforeEl);
+}
+
 export function renderConsole(
   consoleLines: string[],
   currentLine: string | null,
   containerEl: HTMLElement,
   cursorVisible: boolean,
 ): void {
+  const prev = terminalRenderStates.get(containerEl);
+  // 行数が減っていたら、それはstartBoot/startShutdown等でconsoleLinesが
+  // リセットされたということ（consoleLinesは末尾への追記でしか変化しないため）。
+  const isReset = !prev || consoleLines.length < prev.renderedLineCount;
+  const linesAdded = !isReset && consoleLines.length > prev.renderedLineCount;
+  const currentLineChanged = isReset || prev.lastCurrentLine !== currentLine;
+  const cursorChanged = isReset || prev.lastCursorVisible !== cursorVisible;
+
+  if (!isReset && !linesAdded && !currentLineChanged && !cursorChanged) {
+    // 前回の描画から何も変わっていない。DOM操作もスクロール追従判定も一切行わない
+    // （ここで毎フレーム触ってしまうと、市民が手動でスクロールしている最中の
+    // scrollTopまで意図せず読み書きしてしまい、スクロール操作を阻害する）。
+    return;
+  }
+
+  // wasNearBottomは、この後の行追加でscrollHeightが変わる前に判定する必要がある。
   const wasNearBottom =
     containerEl.scrollHeight - containerEl.scrollTop - containerEl.clientHeight <=
     AUTO_SCROLL_THRESHOLD_PX;
 
-  containerEl.innerHTML = "";
-  for (const line of consoleLines) {
-    const lineEl = document.createElement("div");
-    lineEl.className = "lc-line";
-    lineEl.textContent = line;
-    containerEl.appendChild(lineEl);
+  let state: TerminalRenderState;
+  if (isReset) {
+    containerEl.innerHTML = "";
+    const built = createCursorLine();
+    for (const line of consoleLines) {
+      appendCompletedLine(containerEl, built.cursorLineEl, line);
+    }
+    containerEl.appendChild(built.cursorLineEl);
+    state = {
+      renderedLineCount: consoleLines.length,
+      lastCurrentLine: null,
+      lastCursorVisible: null,
+      ...built,
+    };
+    terminalRenderStates.set(containerEl, state);
+  } else {
+    state = prev;
+    if (linesAdded) {
+      for (let i = state.renderedLineCount; i < consoleLines.length; i++) {
+        appendCompletedLine(containerEl, state.cursorLineEl, consoleLines[i]);
+      }
+      state.renderedLineCount = consoleLines.length;
+    }
   }
 
-  // 打鍵中の行がなくても、常駐の点滅カーソルを最後の行に添える
-  // （フィードバック3.2：待機中も端末が生きている感を出す）。
-  const cursorLineEl = document.createElement("div");
-  cursorLineEl.className = "lc-line";
-  cursorLineEl.textContent = currentLine ?? "";
-  const cursorEl = document.createElement("span");
-  cursorEl.className = "lc-cursor";
-  cursorEl.style.visibility = cursorVisible ? "visible" : "hidden";
-  cursorLineEl.appendChild(cursorEl);
-  containerEl.appendChild(cursorLineEl);
+  if (currentLineChanged) {
+    // 打鍵中の行がなくても、常駐の点滅カーソルを最後の行に添える
+    // （フィードバック3.2：待機中も端末が生きている感を出す）。
+    state.cursorTextEl.textContent = currentLine ?? "";
+    state.lastCurrentLine = currentLine;
+  }
+  if (cursorChanged) {
+    state.cursorGlyphEl.style.visibility = cursorVisible ? "visible" : "hidden";
+    state.lastCursorVisible = cursorVisible;
+  }
 
   if (wasNearBottom) {
     containerEl.scrollTop = containerEl.scrollHeight;
@@ -127,10 +190,15 @@ export function getResultTerminalEl(): HTMLElement {
 
 const PROGRESS_BAR_LENGTH = 10;
 
+// モノスペースフォント前提で、VOLメーター側のラベル（updateVocalMeter参照）と
+// `[`の位置を文字数で揃える。ステータスバーが折り返して2行になったとき
+// （.lc-status-readout参照）、両方のバーの開始位置が縦に揃って見える。
+const PROGRESS_LABEL = "Loading... ";
+
 export function updateProgressBar(percent: number): void {
   const filled = Math.round((percent / 100) * PROGRESS_BAR_LENGTH);
   const bar = "=".repeat(filled) + " ".repeat(PROGRESS_BAR_LENGTH - filled);
-  progressEl.textContent = `Loading... [${bar}] ${Math.floor(percent)}%`;
+  progressEl.textContent = `${PROGRESS_LABEL}[${bar}] ${Math.floor(percent)}%`;
 }
 
 const SPINNER_FRAMES = ["|", "/", "-", "\\"];
@@ -144,14 +212,16 @@ export function updateSpinner(nowMs: number): void {
 
 const VOCAL_METER_LENGTH = 10;
 
-// amplitude/maxAmplitudeは`Player.getVocalAmplitude`/`getMaxVocalAmplitude`の
-// 戻り値をそのまま渡す想定。ボーカルの音量に反応するASCII風メーター
-// （フィードバック3.2）。
+// ラベル（"VOL "）と`[`の位置合わせはCSS側（.lc-vol-label、コンテナクエリ）に委ねる。
+// ここではバー本体（[...]）だけを書き込む。JS側で折り返し状態を判定して文言を
+// 出し分ける方式は、判定対象の幅自体が出し分けた文言の幅に左右されてしまい
+// （表示中の文言によって折り返し判定が変わり、判定結果によってまた文言が変わる）、
+// 一度折り返すと戻すときだけ閾値がずれるヒステリシスを引き起こしていたため廃止した。
 export function updateVocalMeter(amplitude: number, maxAmplitude: number): void {
   const ratio = maxAmplitude > 0 ? Math.min(1, Math.max(0, amplitude / maxAmplitude)) : 0;
   const filled = Math.round(ratio * VOCAL_METER_LENGTH);
   const bar = "*".repeat(filled) + " ".repeat(VOCAL_METER_LENGTH - filled);
-  vocalMeterEl.textContent = `VOL [${bar}]`;
+  vocalBarEl.textContent = `[${bar}]`;
 }
 
 function formatMmSs(ms: number): string {

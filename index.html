@@ -148,8 +148,12 @@
         <section id="lc-screen-play" class="screen">
           <div class="lc-status-bar">
             <span id="lc-spinner" class="lc-spinner"></span>
-            <span id="lc-progress" class="lc-progress"></span>
-            <span id="lc-vocal-meter" class="lc-vocal-meter"></span>
+            <div class="lc-status-readout">
+              <span id="lc-progress" class="lc-progress"></span>
+              <span id="lc-vocal-meter" class="lc-vocal-meter"
+                ><span class="lc-vol-label">VOL </span><span id="lc-vocal-bar"></span
+              ></span>
+            </div>
           </div>
           <div id="lc-terminal-play" class="lc-terminal"></div>
           <!-- 開発用の再生位置シークバー・一時停止ボタン（DEV環境限定、index.tsが

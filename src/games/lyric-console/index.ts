@@ -70,8 +70,10 @@ export function init(onBack: () => void): void {
   function tryConfirmStart(): void {
     if (state.phase !== "waitingForStart") return;
     game.confirmStart(state);
-    // RETRYの場合も含め、常に頭出ししてから再生する（既に位置0でも無害）。
-    textalive.restartPlayback(player);
+    // RETRYの場合も含め、この時点では再生位置が必ず0のため頭出し（シーク）は不要
+    // （理由はtextalive.startPlaybackのコメント参照。シークを挟むと再生開始に
+    // 失敗したまま固まる不具合があったため、あえて省略している）。
+    textalive.startPlayback(player);
   }
   ui.getPlayTerminalEl().addEventListener("click", tryConfirmStart);
   window.addEventListener("keydown", (e) => {

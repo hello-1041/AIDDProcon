@@ -113,6 +113,14 @@
   flex: 1;
   overflow-y: auto;
   padding: 1rem 1.25rem;
+  /* #lc-media（画面右下固定の楽曲情報バナー）が画面最下部に重なる。padding-bottom
+     ではスクロール末尾でしか歌詞を避けられない（クリッピング境界＝表示領域自体は
+     画面下端近くまで変わらないため、途中までスクロールした位置ではバナーの高さと
+     重なる行がそのまま隠れてしまう）。そのためmargin-bottomでターミナル自体の
+     表示領域をバナーの手前で止め、どのスクロール位置でも歌詞がバナーの下に
+     入り込まないようにする（#lc-mediaのbottom:5rem + バナー自体の高さ約2rem分の
+     実測値に安全マージンを足した値）。 */
+  margin-bottom: 7.5rem;
   text-align: left;
   font-size: 1.1rem;
   line-height: 1.6;
@@ -162,10 +170,12 @@
 }
 
 /* プレイ画面上部の固定ステータスバー。歌詞の量に関わらず、常に同じ位置に
-   留まる（フィードバック3.1）。 */
+   留まる（フィードバック3.1）。#lc-screen-playのalign-items:stretchにより、
+   このコンテナ自体の幅は常に子要素（VOLラベルの折り返し状態）とは無関係に
+   決まる。下のコンテナクエリはこの幅を基準にする。 */
 .lc-status-bar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
   padding: 0.4rem 0.9rem;
   margin-bottom: 0.75rem;
@@ -174,6 +184,39 @@
   font-size: 0.95rem;
   white-space: pre;
   flex-shrink: 0;
+  container-type: inline-size;
+  container-name: lc-status;
+}
+
+/* VOLメーターのラベル部分。既定（.lc-status-readoutが折り返さない幅）では
+   自然な幅（"VOL "の4文字ぶん）のまま。コンテナクエリで、.lc-status-readoutが
+   折り返す幅まで.lc-status-bar自体が狭くなったときだけ、PROGRESS_LABEL
+   （"Loading... "、11文字）と同じ11chまで広げる。これにより`[`の位置が
+   Loading...と揃う。
+
+   JS側で折り返し状態を判定して文言を出し分ける方式（過去に採用）は、判定対象の
+   幅自体が出し分けた文言の幅に左右されてしまい、一度折り返すと戻すときだけ
+   閾値がずれるヒステリシスを起こしていた。.lc-status-bar自体の幅は子要素の
+   内容に左右されないため、これを基準にするコンテナクエリなら循環が起きない。 */
+.lc-vol-label {
+  display: inline-block;
+}
+
+@container lc-status (max-width: 400px) {
+  .lc-vol-label {
+    width: 11ch;
+  }
+}
+
+/* 進捗（Loading...）とVOLメーターをまとめて折り返し単位にする。狭幅で入りきらない
+   場合、VOLメーターはこの内側コンテナの左端＝Loading...の左端で改行される
+   （外側.lc-status-barで折り返すと、スピナーの位置で改行されてしまうため）。 */
+.lc-status-readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1rem;
+  min-width: 0;
 }
 
 .lc-spinner,
@@ -238,4 +281,14 @@
   z-index: 100;
   font-size: 0.75rem;
   background: transparent;
+  /* この楽曲は映像を持たないため、TextAlive側が確保する動画プレースホルダ領域
+     （.textalive-media-wrapper、常に空）が視覚的に見えないまま大きな透明領域として
+     クリック／タップを奪ってしまう（スマホでタイトル画面のスタートボタンが押せない
+     ケースを実機確認）。クレジット表示（.textalive-banner）だけクリックを受け付け、
+     それ以外は素通しにする。 */
+  pointer-events: none;
+}
+
+#lc-media .textalive-banner {
+  pointer-events: auto;
 }

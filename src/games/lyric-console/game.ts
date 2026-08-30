@@ -97,9 +97,15 @@ export function updateBootPhase(state: GameState, dtMs: number): void {
   }
 }
 
+// waitingForStartからの入力受理を示す一言。press any key to continueに対する応答として
+// 追記する（本物のターミナルはスクロールバックを自動で消さないため、ブートログを
+// クリアするのではなく、応答を積み増す形で「入力待ちが終わった」ことを表す）。
+const KEY_RECEIVED_LINE = "key received.";
+
 // 入力待ち状態から、実際に曲の再生・歌詞タイプ演出を開始する。
 export function confirmStart(state: GameState): void {
   if (state.phase !== "waitingForStart") return;
+  state.consoleLines = [...state.consoleLines, KEY_RECEIVED_LINE];
   state.phase = "lyrics";
 }
 
