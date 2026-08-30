@@ -131,17 +131,22 @@ function attemptPlay(player: Player, retriesLeft: number): void {
   }, 400);
 }
 
-// 「スタート」操作から呼ぶ。位置は既に0のため、requestMediaSeekは呼ばない。
+// 「スタート」操作・「もう一度遊ぶ」操作、いずれからも呼ぶ唯一の再生開始経路。
+// このコンテンツでは、waitingForStart（press any key to continue）へ到達する時点で
+// 必ず再生位置が0になっている（初回はまだ再生していないため0。RETRY後の場合も、
+// 結果画面には曲の終了（onStop、またはTITLE操作のrequestStop）を経てからしか
+// 到達しないため、いずれも内部で位置0まで巻き戻し済み）。そのためrequestMediaSeekは
+// 呼ばない。
+//
+// 呼ばない理由はもう一つある。requestMediaSeekの直後にrequestPlayを呼ぶと、
+// シークが内部的に発行するpause()とplay()が競合し、
+// "The play() request was interrupted by a call to pause()." で再生が失敗し、
+// リトライを尽くしても再生が始まらないまま固まる不具合を実機で確認したため
+// （水切リズム・ブロック崩しのrestartPlaybackと同じ実装だが、あちらはリトライ時のみ
+// 踏む経路のため顕在化しにくかった。このコンテンツはブート→入力待ちを毎回挟む設計上、
+// 常にこの経路を通るため、レースに晒される頻度が高かった）。
 export function startPlayback(player: Player): void {
   ended = false;
   started = false;
-  attemptPlay(player, 2);
-}
-
-// 「もう一度遊ぶ」操作から呼ぶ。曲を先頭まで巻き戻してから再生する。
-export function restartPlayback(player: Player): void {
-  ended = false;
-  started = false;
-  player.requestMediaSeek(0);
   attemptPlay(player, 2);
 }

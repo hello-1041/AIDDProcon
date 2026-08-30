@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MizukiRhythm</title>
+    <title>AIDDProcon</title>
     <!-- ブロック崩し（block-kuzushi）専用のドット風フォント -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -31,24 +31,21 @@
           <li>
             <button class="game-entry" data-game="mizuki-rhythm" disabled>
               <span class="game-entry-title">水切リズム</span>
-              <span class="game-entry-desc">音楽のリズムに合わせてクリック！石を遠くまで飛ばそう</span>
             </button>
           </li>
           <li>
             <button class="game-entry" data-game="block-kuzushi" disabled>
               <span class="game-entry-title">ブロック崩し</span>
-              <span class="game-entry-desc">歌詞ブロックをボールで崩そう！全部集めてクリアを目指せ</span>
             </button>
           </li>
           <li>
             <button class="game-entry" data-game="lyric-console">
-              <span class="game-entry-title">歌詞コンソール</span>
-              <span class="game-entry-desc">歌詞がタイプされる疑似ターミナルを眺めよう</span>
+              <span class="game-entry-title">Lyric-Console</span>
             </button>
           </li>
           <li>
             <button class="game-entry" disabled>
-              <span class="game-entry-title">準備中</span>
+              <span class="game-entry-title">準備中...</span>
             </button>
           </li>
         </ul>
@@ -127,10 +124,9 @@
       <div id="game-lyric-console" class="game-section">
         <section id="lc-screen-title" class="screen">
           <h1 id="lc-title-logo">歌詞コンソール</h1>
-          <p class="lc-title-desc">
-            曲に合わせて歌詞がタイプされる<br />
-            疑似ターミナルを眺めよう
-          </p>
+          <!-- 説明文は削除済み。この要素自体はトークン未設定時のエラー表示欄として
+               ui.ts の showTokenError から使い回すため、空のまま残す。 -->
+          <p class="lc-title-desc"></p>
 
           <div class="lc-setting-group">
             <span class="lc-setting-label">Color</span>
@@ -148,8 +144,12 @@
         <section id="lc-screen-play" class="screen">
           <div class="lc-status-bar">
             <span id="lc-spinner" class="lc-spinner"></span>
-            <span id="lc-progress" class="lc-progress"></span>
-            <span id="lc-vocal-meter" class="lc-vocal-meter"></span>
+            <div class="lc-status-readout">
+              <span id="lc-progress" class="lc-progress"></span>
+              <span id="lc-vocal-meter" class="lc-vocal-meter"
+                ><span class="lc-vol-label">VOL </span><span id="lc-vocal-bar"></span
+              ></span>
+            </div>
           </div>
           <div id="lc-terminal-play" class="lc-terminal"></div>
           <!-- 開発用の再生位置シークバー・一時停止ボタン（DEV環境限定、index.tsが
