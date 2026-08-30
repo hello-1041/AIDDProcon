@@ -41,14 +41,18 @@ function finishSong(onSongEnd: () => void): void {
 }
 
 // 曲の終端に達したかどうかを判定し、達していれば一度だけonSongEndを呼ぶ。
-// onStopが本命の検知経路のため、こちらは補助的なポーリングに留める
-// （player.video.endTimeがdurationと乖離する曲があるための対策。
-// 水切リズム・ブロック崩し両方が採用している設計をそのまま踏襲する）。
+// onStopが本命の検知経路のため、こちらは補助的なポーリングに留める。
+//
+// 比較対象はplayer.video.endTimeではなくplayer.video.duration（実際の音声の
+// 長さ）を使う。endTimeは歌詞・ビート等の解析データがカバーする区間の終了
+// 時刻に過ぎず、曲によってはこれより後にアウトロが続く。endTimeを基準に
+// すると、アウトロの手前で「曲が終わった」と誤検知し、リザルト画面が
+// アウトロと被って表示されてしまう不具合があった（フィードバック1.2）。
 export function checkSongEnd(player: Player, songPosition: number, onSongEnd: () => void): void {
   if (!started || ended) return;
-  const endTime = player.video.endTime;
-  if (!Number.isFinite(endTime) || endTime <= 0) return;
-  if (songPosition >= endTime) finishSong(onSongEnd);
+  const duration = player.video.duration;
+  if (!Number.isFinite(duration) || duration <= 0) return;
+  if (songPosition >= duration) finishSong(onSongEnd);
 }
 
 export function createPlayer(
@@ -61,6 +65,10 @@ export function createPlayer(
     // 水切リズムの#media、ブロック崩しの#bk-mediaとは別IDに分離する。
     // 同一DOM上に複数Playerが共存するため、グローバル単一IDの奪い合いを避ける。
     mediaElement: "#lc-media",
+    // ボーカル音量メーター（フィードバック3.2）でgetVocalAmplitude/
+    // getMaxVocalAmplitudeを使うために必要。省略すると常に0が返り、
+    // メーターがまったく動かない。
+    vocalAmplitudeEnabled: true,
   });
 
   player.volume = DEFAULT_VOLUME;

@@ -138,15 +138,6 @@
               <button class="lc-option-btn" data-value="GREEN">GREEN</button>
               <button class="lc-option-btn" data-value="AMBER">AMBER</button>
               <button class="lc-option-btn" data-value="WHITE">WHITE</button>
-              <button class="lc-option-btn" data-value="CYAN">CYAN</button>
-            </div>
-          </div>
-          <div class="lc-setting-group">
-            <span class="lc-setting-label">Font</span>
-            <div class="lc-option-buttons" data-lc-option="font">
-              <button class="lc-option-btn" data-value="STANDARD">STANDARD</button>
-              <button class="lc-option-btn" data-value="WIDE">WIDE</button>
-              <button class="lc-option-btn" data-value="COMPACT">COMPACT</button>
             </div>
           </div>
 
@@ -155,17 +146,31 @@
         </section>
 
         <section id="lc-screen-play" class="screen">
+          <div class="lc-status-bar">
+            <span id="lc-spinner" class="lc-spinner"></span>
+            <span id="lc-progress" class="lc-progress"></span>
+            <span id="lc-vocal-meter" class="lc-vocal-meter"></span>
+          </div>
           <div id="lc-terminal-play" class="lc-terminal"></div>
-          <div id="lc-progress" class="lc-progress"></div>
+          <!-- 開発用の再生位置シークバー・一時停止ボタン（DEV環境限定、index.tsが
+               表示・配線を行う。本番ビルドではCSSの既定値display:noneのまま） -->
+          <input
+            type="range"
+            id="lc-debug-seek"
+            class="lc-debug-seek"
+            min="0"
+            max="0"
+            value="0"
+            step="1"
+          />
+          <button id="lc-debug-pause" class="lc-debug-pause">⏸ 一時停止</button>
         </section>
 
         <section id="lc-screen-result" class="screen">
           <div id="lc-terminal-result" class="lc-terminal"></div>
           <div id="lc-result-stats" class="lc-result-stats">
-            <p>phrases displayed: <span id="lc-stat-phrases"></span></p>
             <p>playtime: <span id="lc-stat-playtime"></span></p>
             <p>color: <span id="lc-stat-color"></span></p>
-            <p>font: <span id="lc-stat-font"></span></p>
             <div class="result-buttons">
               <button id="lc-btn-retry">[ RETRY ]</button>
               <button id="lc-btn-title">[ TITLE ]</button>

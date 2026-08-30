@@ -27,9 +27,8 @@ export function init(onBack: () => void): void {
   let lastFrameTime: number | null = null;
   let shutdownResultShown = false;
 
-  ui.applyTheme(state.settings.color, state.settings.font);
+  ui.applyTheme(state.settings.color);
   ui.updateColorOptionButtons(state.settings.color);
-  ui.updateFontOptionButtons(state.settings.font);
 
   // 曲の再生終了時に呼ぶ。textalive.ts内のonTimeUpdate／onStopイベントと、下の
   // ループからの毎フレームのポーリング（checkSongEnd呼び出し）から呼ばれうる。
@@ -43,7 +42,7 @@ export function init(onBack: () => void): void {
     token,
     () => {
       // onVideoReady/onTimerReady: 歌詞情報が確定し、プレイ可能になった。
-      // 既に選択済みのColor/Fontはそのまま引き継ぐ。
+      // 既に選択済みのColorはそのまま引き継ぐ。
       const phrases = textalive.computeLyricPhraseEntries(player);
       state = game.createInitialState(phrases, state.settings);
       ui.setStartEnabled(true);
@@ -53,45 +52,87 @@ export function init(onBack: () => void): void {
 
   ui.bindColorOptionButtons((color) => {
     game.setColor(state, color);
-    ui.applyTheme(state.settings.color, state.settings.font);
+    ui.applyTheme(state.settings.color);
     ui.updateColorOptionButtons(color);
-  });
-  ui.bindFontOptionButtons((font) => {
-    game.setFont(state, font);
-    ui.applyTheme(state.settings.color, state.settings.font);
-    ui.updateFontOptionButtons(font);
   });
 
   ui.bindStartButton(() => {
     state.screen = "play";
     ui.showScreen("play");
-    // ブート進行は壁時計dtMs基準、歌詞トリガーはsongPosition基準で、互いに
-    // 待ち合わせず並行進行させる（製造計画書2.4節：演出都合で曲の頭出しを
-    // ずらさない）。
+    // ブートは曲の再生と並行させない。「ready.」表示後、入力を待ってから
+    // 曲を再生する（フィードバック1.3：並行させるとイントロの短い曲で
+    // 歌詞がバースト表示される不具合があったため）。
     game.startBoot(state);
-    textalive.startPlayback(player);
+  });
+
+  // ブート完了後の入力待ち（waitingForStart）から、実際に曲の再生を始める。
+  // クリックまたは任意キー入力で進む（「Press any key to continue」の慣習）。
+  function tryConfirmStart(): void {
+    if (state.phase !== "waitingForStart") return;
+    game.confirmStart(state);
+    // RETRYの場合も含め、常に頭出ししてから再生する（既に位置0でも無害）。
+    textalive.restartPlayback(player);
+  }
+  ui.getPlayTerminalEl().addEventListener("click", tryConfirmStart);
+  window.addEventListener("keydown", (e) => {
+    if (state.phase !== "waitingForStart") return;
+    e.preventDefault();
+    tryConfirmStart();
   });
 
   ui.bindResultButtons(
     () => {
-      // RETRY: 選択済みのColor/Fontを引き継いだままブートから再生し直す。
+      // RETRY: 選択済みのColorを引き継いだままブートから再生し直す。
       state = game.createInitialState(state.phrases, state.settings);
       state.screen = "play";
       ui.showScreen("play");
       game.startBoot(state);
-      textalive.restartPlayback(player);
     },
     () => {
-      // TITLE: 選択済みのColor/Fontを引き継いだままタイトルへ戻る。
+      // TITLE: 選択済みのColorを引き継いだままタイトルへ戻る。
       player.requestStop();
       state = game.createInitialState(state.phrases, state.settings);
       ui.showScreen("title");
     },
   );
 
+  // 開発用の一時停止・シークUI（DEV環境限定、簡易実装。フィードバック3.4）。
+  // DEV以外ではno-opのままにしておき、下のループ側は分岐なしで呼べるようにする。
+  let updateDebugSeek: (songPosition: number) => void = () => {};
+
+  if (import.meta.env.DEV) {
+    const debugSeekEl = document.querySelector<HTMLInputElement>("#lc-debug-seek")!;
+    const debugPauseEl = document.querySelector<HTMLButtonElement>("#lc-debug-pause")!;
+    debugSeekEl.style.display = "block";
+    debugPauseEl.style.display = "inline-block";
+
+    let devPaused = false;
+    debugPauseEl.addEventListener("click", () => {
+      devPaused = !devPaused;
+      if (devPaused) player.requestPause();
+      else player.requestPlay();
+      debugPauseEl.textContent = devPaused ? "▶ 再生" : "⏸ 一時停止";
+    });
+    debugSeekEl.addEventListener("input", () => {
+      player.requestMediaSeek(Number(debugSeekEl.value));
+    });
+
+    updateDebugSeek = (songPosition: number) => {
+      const duration = player.video.duration;
+      if (Number.isFinite(duration) && duration > 0) {
+        debugSeekEl.max = String(duration);
+      }
+      debugSeekEl.value = String(songPosition);
+    };
+  }
+
+  const CURSOR_BLINK_INTERVAL_MS = 530;
+
   const loop = (now: number) => {
     const dtMs = lastFrameTime === null ? 0 : Math.min(now - lastFrameTime, MAX_DT_MS);
     lastFrameTime = now;
+    // 点滅カーソルのon/off状態を、経過時間から直接計算する（ui.renderConsole参照）。
+    const cursorVisible = Math.floor(now / CURSOR_BLINK_INTERVAL_MS) % 2 === 0;
 
     // 1フレームの処理中に想定外の例外が起きても、requestAnimationFrame(loop)への
     // 再スケジュールだけは必ず行う（既存2作と同じ設計。1フレームの失敗で
@@ -99,27 +140,25 @@ export function init(onBack: () => void): void {
     try {
       if (state.screen === "play") {
         const songPosition = player.timer.position;
-        textalive.checkSongEnd(player, songPosition, handleSongEnd);
+        ui.updateSpinner(now);
+        ui.updateProgressBar(game.getProgressPercent(songPosition, player.video.duration));
+        ui.updateVocalMeter(player.getVocalAmplitude(songPosition), player.getMaxVocalAmplitude());
+        updateDebugSeek(songPosition);
 
         if (state.phase === "boot") {
           game.updateBootPhase(state, dtMs);
-        } else {
+        } else if (state.phase === "lyrics") {
+          textalive.checkSongEnd(player, songPosition, handleSongEnd);
           game.updateLyricTyping(state, songPosition);
-          ui.updateProgressBar(game.getProgressPercent(songPosition, player.video.endTime));
         }
-        ui.renderConsole(state.consoleLines, state.currentLine, ui.getPlayTerminalEl());
+        ui.renderConsole(state.consoleLines, state.currentLine, ui.getPlayTerminalEl(), cursorVisible);
       } else if (state.screen === "result") {
         game.updateShutdownPhase(state, dtMs);
-        ui.renderConsole(state.consoleLines, state.currentLine, ui.getResultTerminalEl());
+        ui.renderConsole(state.consoleLines, state.currentLine, ui.getResultTerminalEl(), cursorVisible);
 
         if (!shutdownResultShown && state.shutdownTyper?.finished) {
           shutdownResultShown = true;
-          ui.showResult(
-            state.phrasesDisplayedCount,
-            player.video.endTime,
-            state.settings.color,
-            state.settings.font,
-          );
+          ui.showResult(player.video.duration, state.settings.color);
         }
       }
     } catch (error) {
