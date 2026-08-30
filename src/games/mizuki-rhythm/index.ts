@@ -56,14 +56,6 @@ export function init(onBack: () => void): void {
   let paused = false;
   let pauseStartedAt: number | null = null;
 
-  // player.video.endTimeが実際の再生時間と一致しない曲があり、position >= endTimeが
-  // 一度も成立しないまま自然に再生が止まってしまうことがある（checkSongEndをループで
-  // 毎フレーム呼ぶだけでは解消しなかった）。再生位置が一定時間変化しなくなったことを
-  // もって「曲が終了した（もしくは何らかの理由で止まった）」とみなすフォールバック。
-  const SONG_STALL_TIMEOUT_MS = 800;
-  let lastObservedPosition = -1;
-  let lastPositionChangeAt = 0;
-
   // クリック時／アイドルホップ時、共通で使う跳躍アニメーションの着水目標（再生位置）を求める。
   // 次のダウンビートの再生位置に合わせ、すぐに着水せずゆっくり跳ねるようにする。
   function computeBounceTarget(fromSongTime: number): number {
@@ -78,9 +70,9 @@ export function init(onBack: () => void): void {
     return fromSongTime + duration;
   }
 
-  // 曲の再生終了時に呼ぶ。textalive.ts内のonTimeUpdateイベントと、下のループからの
-  // 毎フレームのポーリング（下のcheckSongEnd呼び出し）の両方から呼ばれうる
-  // （textalive.checkSongEndが二重発火を防ぐため、ここでは呼ばれた分だけそのまま処理してよい）。
+  // 曲の再生終了時に呼ぶ。textalive.ts内のonTimeUpdate／onStopイベントと、下のループからの
+  // 毎フレームのポーリング（下のcheckSongEnd呼び出し）から呼ばれうる
+  // （textalive.finishSongが二重発火を防ぐため、ここでは呼ばれた分だけそのまま処理してよい）。
   function handleSongEnd(): void {
     game.finishChallenge(state);
     ui.showScreen("result");
@@ -202,23 +194,10 @@ export function init(onBack: () => void): void {
 
       // onTimeUpdateイベント任せだと曲の終端ぴったりで発火しないことがあるため、
       // 毎フレームここでもポーリングして確実に検知する（textalive.checkSongEnd参照）。
+      // 曲の自然終了自体は、textalive.createPlayer内のonStopイベントリスナーがより
+      // 確実に検知する（player.video.endTimeとdurationが一致しない曲でも取りこぼさない）。
       if (state.screen === "play") {
         textalive.checkSongEnd(player, songPosition, handleSongEnd);
-
-        // 上のcheckSongEndだけでは解消しなかった曲があったため、position >= endTimeに
-        // 依存しないフォールバックとして、再生位置そのものが動かなくなったことでも
-        // 終了とみなす（endTimeが実際の再生時間と一致しない曲への対策）。
-        if (songPosition !== lastObservedPosition) {
-          lastObservedPosition = songPosition;
-          lastPositionChangeAt = performance.now();
-        } else if (
-          songPosition > 0 &&
-          !debugSeekDragging &&
-          performance.now() - lastPositionChangeAt > SONG_STALL_TIMEOUT_MS
-        ) {
-          textalive.markSongEnded();
-          handleSongEnd();
-        }
       }
 
       // クリックしていない間も、石が常時ダウンビートに向けて跳ね続ける（自動で跳ねるだけで

@@ -5,20 +5,45 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MizukiRhythm</title>
+    <!-- ブロック崩し（block-kuzushi）専用のドット風フォント -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="app">
       <!-- TextAlive Player のメディア要素（音声再生・クレジットバナー表示先） -->
       <div id="media"></div>
+      <!-- ブロック崩し（block-kuzushi）専用の第2のPlayerインスタンス用メディア要素。
+           水切リズムの#mediaとはグローバルIDを分離し、独立して音声再生・バナー表示を行う。 -->
+      <div id="bk-media"></div>
+      <!-- 歌詞コンソール（lyric-console）専用の第3のPlayerインスタンス用メディア要素。
+           他2作とグローバルIDを分離し、独立して音声再生・バナー表示を行う。 -->
+      <div id="lc-media"></div>
 
       <section id="screen-menu" class="screen screen--active">
         <h1 id="menu-logo">GAME MENU</h1>
         <p class="menu-desc">遊びたいゲームを選んでください</p>
         <ul class="game-list">
           <li>
-            <button class="game-entry" data-game="mizuki-rhythm">
+            <button class="game-entry" data-game="mizuki-rhythm" disabled>
               <span class="game-entry-title">水切リズム</span>
               <span class="game-entry-desc">音楽のリズムに合わせてクリック！石を遠くまで飛ばそう</span>
+            </button>
+          </li>
+          <li>
+            <button class="game-entry" data-game="block-kuzushi" disabled>
+              <span class="game-entry-title">ブロック崩し</span>
+              <span class="game-entry-desc">歌詞ブロックをボールで崩そう！全部集めてクリアを目指せ</span>
+            </button>
+          </li>
+          <li>
+            <button class="game-entry" data-game="lyric-console">
+              <span class="game-entry-title">歌詞コンソール</span>
+              <span class="game-entry-desc">歌詞がタイプされる疑似ターミナルを眺めよう</span>
             </button>
           </li>
           <li>
@@ -62,6 +87,94 @@
           <div class="result-buttons">
             <button id="btn-retry">もう一度遊ぶ</button>
             <button id="btn-title">タイトルに戻る</button>
+          </div>
+        </section>
+      </div>
+
+      <div id="game-block-kuzushi" class="game-section">
+        <section id="bk-screen-title" class="screen">
+          <h1 id="bk-title-logo">ブロック崩し</h1>
+          <p class="bk-title-desc">
+            歌詞ブロックをボールで崩そう！<br />
+            全部集めてクリアを目指せ
+          </p>
+          <button id="bk-btn-start" disabled>クリックしてスタート</button>
+          <button id="bk-btn-menu" class="btn-secondary">メニューに戻る</button>
+        </section>
+
+        <section id="bk-screen-play" class="screen">
+          <div class="bk-header">
+            <span>取得率: <span id="bk-hud-score">0%</span></span>
+            <span class="bk-header-next">次: <span id="bk-hud-next-word">-</span></span>
+            <button id="bk-btn-pause">⏸ 一時停止</button>
+          </div>
+          <div class="bk-canvas-wrap">
+            <canvas id="bk-canvas"></canvas>
+          </div>
+        </section>
+
+        <section id="bk-screen-result" class="screen">
+          <h1>結果発表</h1>
+          <p id="bk-result-score"></p>
+          <div id="bk-result-words" class="bk-result-words"></div>
+          <div class="result-buttons">
+            <button id="bk-btn-retry">もう一度遊ぶ</button>
+            <button id="bk-btn-title">タイトルに戻る</button>
+          </div>
+        </section>
+      </div>
+
+      <div id="game-lyric-console" class="game-section">
+        <section id="lc-screen-title" class="screen">
+          <h1 id="lc-title-logo">歌詞コンソール</h1>
+          <p class="lc-title-desc">
+            曲に合わせて歌詞がタイプされる<br />
+            疑似ターミナルを眺めよう
+          </p>
+
+          <div class="lc-setting-group">
+            <span class="lc-setting-label">Color</span>
+            <div class="lc-option-buttons" data-lc-option="color">
+              <button class="lc-option-btn" data-value="GREEN">GREEN</button>
+              <button class="lc-option-btn" data-value="AMBER">AMBER</button>
+              <button class="lc-option-btn" data-value="WHITE">WHITE</button>
+            </div>
+          </div>
+
+          <button id="lc-btn-start" disabled>クリックしてスタート</button>
+          <button id="lc-btn-menu" class="lc-btn-secondary">メニューに戻る</button>
+        </section>
+
+        <section id="lc-screen-play" class="screen">
+          <div class="lc-status-bar">
+            <span id="lc-spinner" class="lc-spinner"></span>
+            <span id="lc-progress" class="lc-progress"></span>
+            <span id="lc-vocal-meter" class="lc-vocal-meter"></span>
+          </div>
+          <div id="lc-terminal-play" class="lc-terminal"></div>
+          <!-- 開発用の再生位置シークバー・一時停止ボタン（DEV環境限定、index.tsが
+               表示・配線を行う。本番ビルドではCSSの既定値display:noneのまま） -->
+          <input
+            type="range"
+            id="lc-debug-seek"
+            class="lc-debug-seek"
+            min="0"
+            max="0"
+            value="0"
+            step="1"
+          />
+          <button id="lc-debug-pause" class="lc-debug-pause">⏸ 一時停止</button>
+        </section>
+
+        <section id="lc-screen-result" class="screen">
+          <div id="lc-terminal-result" class="lc-terminal"></div>
+          <div id="lc-result-stats" class="lc-result-stats">
+            <p>playtime: <span id="lc-stat-playtime"></span></p>
+            <p>color: <span id="lc-stat-color"></span></p>
+            <div class="result-buttons">
+              <button id="lc-btn-retry">[ RETRY ]</button>
+              <button id="lc-btn-title">[ TITLE ]</button>
+            </div>
           </div>
         </section>
       </div>

@@ -1,5 +1,7 @@
 import "./style.css";
 import { init as initMizukiRhythm } from "./games/mizuki-rhythm/index.ts";
+import { init as initBlockKuzushi } from "./games/block-kuzushi/index.ts";
+import { init as initLyricConsole } from "./games/lyric-console/index.ts";
 
 const screenMenuEl = document.querySelector<HTMLElement>("#screen-menu")!;
 
@@ -8,6 +10,8 @@ const screenMenuEl = document.querySelector<HTMLElement>("#screen-menu")!;
 // 初期化コストを発生させないため）。
 const GAME_INIT: Record<string, (onBack: () => void) => void> = {
   "mizuki-rhythm": initMizukiRhythm,
+  "block-kuzushi": initBlockKuzushi,
+  "lyric-console": initLyricConsole,
 };
 
 const gameSectionEl: Record<string, HTMLElement> = {};
