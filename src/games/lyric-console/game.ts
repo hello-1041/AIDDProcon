@@ -1,5 +1,5 @@
 import * as typewriter from "./typewriter.ts";
-import type { LyricPhraseEntry } from "./textalive.ts";
+import type { LyricPhraseEntry, SongInfo } from "./textalive.ts";
 
 export type Screen = "title" | "play" | "result";
 // boot: ブートシーケンスをタイプ中 / waitingForStart: ブート完了、入力待ち（曲は未再生）
@@ -9,15 +9,25 @@ export type ColorTheme = "GREEN" | "AMBER" | "WHITE";
 
 export const COLOR_THEMES: ColorTheme[] = ["GREEN", "AMBER", "WHITE"];
 
-// ブートシーケンス固定行（フィードバック反映：Fontは選択肢を廃止したため、
-// 「font STANDARD」は実設定と紐づかない固定のフレーバー行として残す）。
-function buildBootLines(color: ColorTheme): string[] {
+// ブートシーケンス固定行。曲名・アーティスト名・歌詞フレーズ数は、実際に
+// 読み込んだ楽曲データ（textalive.getSongInfo/computeLyricPhraseEntries）を
+// そのまま差し込む。固定フレーバー行の中に実データを混ぜることで、
+// 「その場で読み込んでいる」感を出す狙い。
+function buildBootLines(color: ColorTheme, songInfo: SongInfo | null, phraseCount: number): string[] {
+  const trackLine = songInfo
+    ? `loading track: ${songInfo.name} — ${songInfo.artist}`
+    : "loading track: (no song loaded)";
   return [
     "booting AIDDProcon terminal...",
     "cd AIDDProcon",
+    "mounting /dev/lyrics...",
+    "loading modules: TYPEWRITER, SCROLLBACK, THEME... OK",
+    "handshake: TextAlive API... OK",
+    trackLine,
+    `indexing lyric phrases... ${phraseCount} entries found`,
     `color ${color}`,
-    "font STANDARD",
     "mode AutoView",
+    "calibrating cursor blink... OK",
     "ready.",
   ];
 }
@@ -42,6 +52,7 @@ export interface GameState {
   phase: Phase;
   settings: GameSettings;
   phrases: LyricPhraseEntry[];
+  songInfo: SongInfo | null;
   phraseCursor: number;
   activePhrase: LyricPhraseEntry | null;
   consoleLines: string[];
@@ -53,12 +64,14 @@ export interface GameState {
 export function createInitialState(
   phrases: LyricPhraseEntry[],
   keepSettings?: GameSettings,
+  songInfo: SongInfo | null = null,
 ): GameState {
   return {
     screen: "title",
     phase: "boot",
     settings: keepSettings ? { ...keepSettings } : { color: "GREEN" },
     phrases,
+    songInfo,
     phraseCursor: 0,
     activePhrase: null,
     consoleLines: [],
@@ -80,7 +93,9 @@ export function startBoot(state: GameState): void {
   state.activePhrase = null;
   state.consoleLines = [];
   state.currentLine = null;
-  state.bootTyper = typewriter.createSequentialTyper(buildBootLines(state.settings.color));
+  state.bootTyper = typewriter.createSequentialTyper(
+    buildBootLines(state.settings.color, state.songInfo, state.phrases.length),
+  );
 }
 
 export function updateBootPhase(state: GameState, dtMs: number): void {

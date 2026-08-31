@@ -44,7 +44,8 @@ export function init(onBack: () => void): void {
       // onVideoReady/onTimerReady: 歌詞情報が確定し、プレイ可能になった。
       // 既に選択済みのColorはそのまま引き継ぐ。
       const phrases = textalive.computeLyricPhraseEntries(player);
-      state = game.createInitialState(phrases, state.settings);
+      const songInfo = textalive.getSongInfo(player);
+      state = game.createInitialState(phrases, state.settings, songInfo);
       ui.setStartEnabled(true);
     },
     handleSongEnd,
@@ -85,7 +86,7 @@ export function init(onBack: () => void): void {
   ui.bindResultButtons(
     () => {
       // RETRY: 選択済みのColorを引き継いだままブートから再生し直す。
-      state = game.createInitialState(state.phrases, state.settings);
+      state = game.createInitialState(state.phrases, state.settings, state.songInfo);
       state.screen = "play";
       ui.showScreen("play");
       game.startBoot(state);
@@ -93,7 +94,7 @@ export function init(onBack: () => void): void {
     () => {
       // TITLE: 選択済みのColorを引き継いだままタイトルへ戻る。
       player.requestStop();
-      state = game.createInitialState(state.phrases, state.settings);
+      state = game.createInitialState(state.phrases, state.settings, state.songInfo);
       ui.showScreen("title");
     },
   );

@@ -121,6 +121,19 @@ export function computeLyricPhraseEntries(player: Player): LyricPhraseEntry[] {
     .filter((entry) => entry.text.length > 0);
 }
 
+export interface SongInfo {
+  name: string;
+  artist: string;
+}
+
+// onReady後に一度だけ呼ぶ。ブートシーケンスの表示用に、曲名・アーティスト名を
+// player.data.songから取り出す（楽曲クレジット自体は.textalive-bannerが別途
+// 担うため、ここでは純粋にフレーバー表示として使う）。
+export function getSongInfo(player: Player): SongInfo {
+  const song = player.data.song;
+  return { name: song.name, artist: song.artist.name };
+}
+
 // requestPlay()を呼んだあと、一定時間内にonPlay（startedフラグ）が発火しなければ
 // 再試行する（初回起動で音楽が鳴らない不具合への保険。水切リズム・ブロック崩しと同じ）。
 function attemptPlay(player: Player, retriesLeft: number): void {
