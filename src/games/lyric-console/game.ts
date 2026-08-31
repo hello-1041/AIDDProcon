@@ -1,5 +1,6 @@
 import * as typewriter from "./typewriter.ts";
-import type { LyricPhraseEntry, SongInfo } from "./textalive.ts";
+import type { LyricPhraseEntry, SongInfo, SongOption } from "./textalive.ts";
+import { DEFAULT_SONG } from "./textalive.ts";
 
 export type Screen = "title" | "play" | "result";
 // boot: ブートシーケンスをタイプ中 / waitingForStart: ブート完了、入力待ち（曲は未再生）
@@ -45,6 +46,7 @@ const SHUTDOWN_LINES = [
 
 export interface GameSettings {
   color: ColorTheme;
+  song: SongOption;
 }
 
 export interface GameState {
@@ -69,7 +71,7 @@ export function createInitialState(
   return {
     screen: "title",
     phase: "boot",
-    settings: keepSettings ? { ...keepSettings } : { color: "GREEN" },
+    settings: keepSettings ? { ...keepSettings } : { color: "GREEN", song: DEFAULT_SONG },
     phrases,
     songInfo,
     phraseCursor: 0,
@@ -83,6 +85,10 @@ export function createInitialState(
 
 export function setColor(state: GameState, color: ColorTheme): void {
   state.settings.color = color;
+}
+
+export function setSong(state: GameState, song: SongOption): void {
+  state.settings.song = song;
 }
 
 // スタート／リトライ操作から呼ぶ。プレイ画面の疑似ターミナルが最初に流す

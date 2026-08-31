@@ -13,11 +13,21 @@ const colorOptionButtons = Array.from(
   document.querySelectorAll<HTMLButtonElement>('[data-lc-option="color"] .lc-option-btn'),
 );
 
+// data-indexでtextalive.SONGSの添字と直結させる（曲名文字列の属性エスケープを避ける）。
+const songOptionButtons = Array.from(
+  document.querySelectorAll<HTMLButtonElement>('[data-lc-option="song"] .lc-option-btn'),
+);
+
 const terminalPlayEl = document.querySelector<HTMLElement>("#lc-terminal-play")!;
 const terminalResultEl = document.querySelector<HTMLElement>("#lc-terminal-result")!;
 const progressEl = document.querySelector<HTMLElement>("#lc-progress")!;
 const spinnerEl = document.querySelector<HTMLElement>("#lc-spinner")!;
 const vocalBarEl = document.querySelector<HTMLElement>("#lc-vocal-bar")!;
+
+// #lc-media（TextAliveのクレジットバナー表示先）は#app直下にあり、.screen--active
+// とは連動しない独立要素。タイトル画面ではSongボタンが曲名を既に表示しており、
+// バナーの曲名表示と被って見づらいため、タイトル画面の間だけ隠す。
+const lcMediaEl = document.querySelector<HTMLElement>("#lc-media")!;
 
 const resultStatsEl = document.querySelector<HTMLElement>("#lc-result-stats")!;
 const statPlaytimeEl = document.querySelector<HTMLElement>("#lc-stat-playtime")!;
@@ -29,6 +39,7 @@ export function showScreen(screen: Screen): void {
   for (const [key, el] of Object.entries(screenEl)) {
     el.classList.toggle("screen--active", key === screen);
   }
+  lcMediaEl.classList.toggle("lc-media--hidden", screen === "title");
   if (screen !== "result") {
     resultStatsEl.classList.remove("lc-result-stats--visible");
   }
@@ -53,6 +64,26 @@ export function updateColorOptionButtons(selected: ColorTheme): void {
 export function bindColorOptionButtons(onSelect: (color: ColorTheme) => void): void {
   for (const btn of colorOptionButtons) {
     btn.addEventListener("click", () => onSelect(btn.dataset.value as ColorTheme));
+  }
+}
+
+export function updateSongOptionButtons(selectedIndex: number): void {
+  for (const btn of songOptionButtons) {
+    btn.classList.toggle("lc-option-btn--active", Number(btn.dataset.index) === selectedIndex);
+  }
+}
+
+export function bindSongOptionButtons(onSelect: (index: number) => void): void {
+  for (const btn of songOptionButtons) {
+    btn.addEventListener("click", () => onSelect(Number(btn.dataset.index)));
+  }
+}
+
+// 選曲中（createFromSongUrlの応答待ち）は、二重クリックによる競合を避けるため
+// Startボタンと一緒に無効化する（index.ts側で対にして呼ぶ）。
+export function setSongOptionButtonsEnabled(enabled: boolean): void {
+  for (const btn of songOptionButtons) {
+    btn.disabled = !enabled;
   }
 }
 

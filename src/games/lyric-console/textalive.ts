@@ -1,16 +1,82 @@
-import { Player, type IPlayerApp } from "textalive-app-api";
+import { Player, type IPlayerApp, type PartialVideoEntry } from "textalive-app-api";
 
-// 既存2作（水切リズム・ブロック崩し）と同じサンプル楽曲を流用する（製造計画書2.1節）。
-export const SAMPLE_SONG_URL = "https://piapro.jp/t/CyPO/20250128183915";
-export const SAMPLE_SONG_OPTIONS = {
-  video: {
-    beatId: 4694280,
-    chordId: 2830735,
-    repetitiveSegmentId: 2946483,
-    lyricId: 67815,
-    lyricDiffId: 20659,
+export interface SongOption {
+  title: string;
+  url: string;
+  video: PartialVideoEntry;
+}
+
+// タイトル画面の選曲候補（マジカルミライ2026 課題曲）。ボタンの並び順と一致させる。
+export const SONGS: SongOption[] = [
+  {
+    title: "こたえて",
+    url: "https://piapro.jp/t/6W2N/20251215164617",
+    video: {
+      beatId: 4827293,
+      chordId: 2963754,
+      repetitiveSegmentId: 3086261,
+      lyricId: 126519,
+      lyricDiffId: 28645,
+    },
   },
-};
+  {
+    title: "アフター・ザ・カーテン",
+    url: "https://piapro.jp/t/zoqO/20251214200738",
+    video: {
+      beatId: 4827294,
+      chordId: 2963755,
+      repetitiveSegmentId: 3086262,
+      lyricId: 126591,
+      lyricDiffId: 28627,
+    },
+  },
+  {
+    title: "シャッターチャンス",
+    url: "https://piapro.jp/t/PNpQ/20251209170719",
+    video: {
+      beatId: 4827295,
+      chordId: 2963756,
+      repetitiveSegmentId: 3086263,
+      lyricId: 126542,
+      lyricDiffId: 28628,
+    },
+  },
+  {
+    title: "世界最後の音楽隊",
+    url: "https://piapro.jp/t/B3yJ/20251215061727",
+    video: {
+      beatId: 4827296,
+      chordId: 2963757,
+      repetitiveSegmentId: 3086264,
+      lyricId: 126594,
+      lyricDiffId: 28629,
+    },
+  },
+  {
+    title: "トリツクロジー",
+    url: "https://piapro.jp/t/QBdL/20251215094303",
+    video: {
+      beatId: 4827297,
+      chordId: 2963758,
+      repetitiveSegmentId: 3086265,
+      lyricId: 126593,
+      lyricDiffId: 28630,
+    },
+  },
+  {
+    title: "TAKEOVER",
+    url: "https://piapro.jp/t/E2i3/20251215092113",
+    video: {
+      beatId: 4827298,
+      chordId: 2963759,
+      repetitiveSegmentId: 3086266,
+      lyricId: 126533,
+      lyricDiffId: 28631,
+    },
+  },
+];
+
+export const DEFAULT_SONG: SongOption = SONGS[0];
 
 export const DEFAULT_VOLUME = 10; // 楽曲の再生音量 [0-100]
 
@@ -55,6 +121,16 @@ export function checkSongEnd(player: Player, songPosition: number, onSongEnd: ()
   if (songPosition >= duration) finishSong(onSongEnd);
 }
 
+// createFromSongUrlを呼ぶ唯一の入口。videoReady/timerReadyは一度trueになった後
+// 自然にはリセットされないため、選曲をやり直すたびにここで明示的にfalseへ戻さないと、
+// 前の曲のready状態を引きずってnotifyReadyIfCompleteが早期発火する（曲切り替え機能を
+// 追加した際に発覚した競合）。
+function beginLoad(player: Player, song: SongOption): void {
+  videoReady = false;
+  timerReady = false;
+  player.createFromSongUrl(song.url, { video: song.video });
+}
+
 export function createPlayer(
   token: string,
   onReady: () => void,
@@ -76,7 +152,7 @@ export function createPlayer(
   player.addListener({
     onAppReady: (app: IPlayerApp) => {
       if (!app.managed) {
-        player.createFromSongUrl(SAMPLE_SONG_URL, SAMPLE_SONG_OPTIONS);
+        beginLoad(player, DEFAULT_SONG);
       }
     },
     onVideoReady: () => {
@@ -106,6 +182,13 @@ export function createPlayer(
   });
 
   return player;
+}
+
+// タイトル画面の選曲ボタンから呼ぶ、曲切り替え用の唯一の公開入口。
+// onVideoReady/onTimerReadyはcreatePlayerで一度だけ登録済みのリスナーがそのまま
+// 再発火するため、コールバックを渡し直す必要はない。
+export function loadSong(player: Player, song: SongOption): void {
+  beginLoad(player, song);
 }
 
 export interface LyricPhraseEntry {
