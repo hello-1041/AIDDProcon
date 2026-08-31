@@ -95,6 +95,14 @@
   box-shadow: var(--lc-glow);
 }
 
+/* Song選択ボタンとStartボタンが同じ意匠のため、境目が分かりにくいという
+   フィードバックへの対応。.lc-setting-groupのmargin-bottomだけでは頼りないため、
+   Start側にも少量の余白を足して視覚的な区切りを作る（Menu側の.lc-btn-secondaryと
+   同じ1remで揃える）。 */
+#lc-btn-start {
+  margin-top: 1rem;
+}
+
 .lc-btn-secondary {
   margin-top: 1rem;
   border-color: #3a4a3a;
@@ -291,4 +299,11 @@
 
 #lc-media .textalive-banner {
   pointer-events: auto;
+}
+
+/* タイトル画面では既にSongボタンが曲名を表示しており、バナーの曲名表示と被って
+   見づらいというフィードバックへの対応。プレイ画面（ブートシーケンスの
+   loading track: 行）以降で改めて表示する。 */
+#lc-media.lc-media--hidden {
+  display: none;
 }

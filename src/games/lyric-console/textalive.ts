@@ -1,16 +1,82 @@
-import { Player, type IPlayerApp } from "textalive-app-api";
+import { Player, type IPlayerApp, type PartialVideoEntry } from "textalive-app-api";
 
-// 既存2作（水切リズム・ブロック崩し）と同じサンプル楽曲を流用する（製造計画書2.1節）。
-export const SAMPLE_SONG_URL = "https://piapro.jp/t/CyPO/20250128183915";
-export const SAMPLE_SONG_OPTIONS = {
-  video: {
-    beatId: 4694280,
-    chordId: 2830735,
-    repetitiveSegmentId: 2946483,
-    lyricId: 67815,
-    lyricDiffId: 20659,
+export interface SongOption {
+  title: string;
+  url: string;
+  video: PartialVideoEntry;
+}
+
+// タイトル画面の選曲候補（マジカルミライ2026 課題曲）。ボタンの並び順と一致させる。
+export const SONGS: SongOption[] = [
+  {
+    title: "こたえて",
+    url: "https://piapro.jp/t/6W2N/20251215164617",
+    video: {
+      beatId: 4827293,
+      chordId: 2963754,
+      repetitiveSegmentId: 3086261,
+      lyricId: 126519,
+      lyricDiffId: 28645,
+    },
   },
-};
+  {
+    title: "アフター・ザ・カーテン",
+    url: "https://piapro.jp/t/zoqO/20251214200738",
+    video: {
+      beatId: 4827294,
+      chordId: 2963755,
+      repetitiveSegmentId: 3086262,
+      lyricId: 126591,
+      lyricDiffId: 28627,
+    },
+  },
+  {
+    title: "シャッターチャンス",
+    url: "https://piapro.jp/t/PNpQ/20251209170719",
+    video: {
+      beatId: 4827295,
+      chordId: 2963756,
+      repetitiveSegmentId: 3086263,
+      lyricId: 126542,
+      lyricDiffId: 28628,
+    },
+  },
+  {
+    title: "世界最後の音楽隊",
+    url: "https://piapro.jp/t/B3yJ/20251215061727",
+    video: {
+      beatId: 4827296,
+      chordId: 2963757,
+      repetitiveSegmentId: 3086264,
+      lyricId: 126594,
+      lyricDiffId: 28629,
+    },
+  },
+  {
+    title: "トリツクロジー",
+    url: "https://piapro.jp/t/QBdL/20251215094303",
+    video: {
+      beatId: 4827297,
+      chordId: 2963758,
+      repetitiveSegmentId: 3086265,
+      lyricId: 126593,
+      lyricDiffId: 28630,
+    },
+  },
+  {
+    title: "TAKEOVER",
+    url: "https://piapro.jp/t/E2i3/20251215092113",
+    video: {
+      beatId: 4827298,
+      chordId: 2963759,
+      repetitiveSegmentId: 3086266,
+      lyricId: 126533,
+      lyricDiffId: 28631,
+    },
+  },
+];
+
+export const DEFAULT_SONG: SongOption = SONGS[0];
 
 export const DEFAULT_VOLUME = 10; // 楽曲の再生音量 [0-100]
 
@@ -55,6 +121,16 @@ export function checkSongEnd(player: Player, songPosition: number, onSongEnd: ()
   if (songPosition >= duration) finishSong(onSongEnd);
 }
 
+// createFromSongUrlを呼ぶ唯一の入口。videoReady/timerReadyは一度trueになった後
+// 自然にはリセットされないため、選曲をやり直すたびにここで明示的にfalseへ戻さないと、
+// 前の曲のready状態を引きずってnotifyReadyIfCompleteが早期発火する（曲切り替え機能を
+// 追加した際に発覚した競合）。
+function beginLoad(player: Player, song: SongOption): void {
+  videoReady = false;
+  timerReady = false;
+  player.createFromSongUrl(song.url, { video: song.video });
+}
+
 export function createPlayer(
   token: string,
   onReady: () => void,
@@ -76,7 +152,7 @@ export function createPlayer(
   player.addListener({
     onAppReady: (app: IPlayerApp) => {
       if (!app.managed) {
-        player.createFromSongUrl(SAMPLE_SONG_URL, SAMPLE_SONG_OPTIONS);
+        beginLoad(player, DEFAULT_SONG);
       }
     },
     onVideoReady: () => {
@@ -108,6 +184,13 @@ export function createPlayer(
   return player;
 }
 
+// タイトル画面の選曲ボタンから呼ぶ、曲切り替え用の唯一の公開入口。
+// onVideoReady/onTimerReadyはcreatePlayerで一度だけ登録済みのリスナーがそのまま
+// 再発火するため、コールバックを渡し直す必要はない。
+export function loadSong(player: Player, song: SongOption): void {
+  beginLoad(player, song);
+}
+
 export interface LyricPhraseEntry {
   text: string;
   startTime: number;
@@ -121,6 +204,19 @@ export function computeLyricPhraseEntries(player: Player): LyricPhraseEntry[] {
     .filter((entry) => entry.text.length > 0);
 }
 
+export interface SongInfo {
+  name: string;
+  artist: string;
+}
+
+// onReady後に一度だけ呼ぶ。ブートシーケンスの表示用に、曲名・アーティスト名を
+// player.data.songから取り出す（楽曲クレジット自体は.textalive-bannerが別途
+// 担うため、ここでは純粋にフレーバー表示として使う）。
+export function getSongInfo(player: Player): SongInfo {
+  const song = player.data.song;
+  return { name: song.name, artist: song.artist.name };
+}
+
 // requestPlay()を呼んだあと、一定時間内にonPlay（startedフラグ）が発火しなければ
 // 再試行する（初回起動で音楽が鳴らない不具合への保険。水切リズム・ブロック崩しと同じ）。
 function attemptPlay(player: Player, retriesLeft: number): void {
@@ -132,21 +228,22 @@ function attemptPlay(player: Player, retriesLeft: number): void {
 }
 
 // 「スタート」操作・「もう一度遊ぶ」操作、いずれからも呼ぶ唯一の再生開始経路。
-// このコンテンツでは、waitingForStart（press any key to continue）へ到達する時点で
-// 必ず再生位置が0になっている（初回はまだ再生していないため0。RETRY後の場合も、
-// 結果画面には曲の終了（onStop、またはTITLE操作のrequestStop）を経てからしか
-// 到達しないため、いずれも内部で位置0まで巻き戻し済み）。そのためrequestMediaSeekは
-// 呼ばない。
 //
-// 呼ばない理由はもう一つある。requestMediaSeekの直後にrequestPlayを呼ぶと、
-// シークが内部的に発行するpause()とplay()が競合し、
-// "The play() request was interrupted by a call to pause()." で再生が失敗し、
-// リトライを尽くしても再生が始まらないまま固まる不具合を実機で確認したため
-// （水切リズム・ブロック崩しのrestartPlaybackと同じ実装だが、あちらはリトライ時のみ
-// 踏む経路のため顕在化しにくかった。このコンテンツはブート→入力待ちを毎回挟む設計上、
-// 常にこの経路を通るため、レースに晒される頻度が高かった）。
+// player.timer.positionは、準備完了（onVideoReady/onTimerReady）から実際にここへ
+// 到達するまでに経過した壁時計時間をそのまま返してしまい、0にはリセットされない
+// （実機で確認した不具合。ブートシーケンス＋入力待ちで数秒〜十数秒空くと、その分
+// だけ歌詞の同期が最初からずれ、複数フレーズが一気に表示される形で顕在化した）。
+// そのためrequestPlayの直前でTimer.seek(0)を呼び、明示的に0へ戻す。
+//
+// ここでrequestMediaSeek（IPlayer側のAPI）ではなくplayer.timer.seek（Timer自身の
+// API）を使うのは意図的。requestMediaSeekの直後にrequestPlayを呼ぶと、シークが
+// 内部的に発行するpause()とplay()が競合し、"The play() request was interrupted by
+// a call to pause()." で再生が失敗したまま固まる不具合を実機で確認している一方、
+// player.timer.seekはメディア要素のpause/playを経由しない純粋な内部時計のリセット
+// であり、同じ競合は起きない（実機で確認済み）。
 export function startPlayback(player: Player): void {
   ended = false;
   started = false;
+  player.timer.seek(0);
   attemptPlay(player, 2);
 }

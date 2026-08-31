@@ -29,6 +29,7 @@ export function init(onBack: () => void): void {
 
   ui.applyTheme(state.settings.color);
   ui.updateColorOptionButtons(state.settings.color);
+  ui.updateSongOptionButtons(textalive.SONGS.indexOf(state.settings.song));
 
   // 曲の再生終了時に呼ぶ。textalive.ts内のonTimeUpdate／onStopイベントと、下の
   // ループからの毎フレームのポーリング（checkSongEnd呼び出し）から呼ばれうる。
@@ -44,8 +45,10 @@ export function init(onBack: () => void): void {
       // onVideoReady/onTimerReady: 歌詞情報が確定し、プレイ可能になった。
       // 既に選択済みのColorはそのまま引き継ぐ。
       const phrases = textalive.computeLyricPhraseEntries(player);
-      state = game.createInitialState(phrases, state.settings);
+      const songInfo = textalive.getSongInfo(player);
+      state = game.createInitialState(phrases, state.settings, songInfo);
       ui.setStartEnabled(true);
+      ui.setSongOptionButtonsEnabled(true);
     },
     handleSongEnd,
   );
@@ -54,6 +57,18 @@ export function init(onBack: () => void): void {
     game.setColor(state, color);
     ui.applyTheme(state.settings.color);
     ui.updateColorOptionButtons(color);
+  });
+
+  ui.bindSongOptionButtons((index) => {
+    // 選曲中（createFromSongUrlの応答待ち）に別の曲を選ばれると、videoReady/
+    // timerReadyの早期発火競合を招くため、ロード完了までSong・Start双方を
+    // 無効化して直列化する（textalive.loadSong参照）。
+    const song = textalive.SONGS[index];
+    game.setSong(state, song);
+    ui.updateSongOptionButtons(index);
+    ui.setStartEnabled(false);
+    ui.setSongOptionButtonsEnabled(false);
+    textalive.loadSong(player, song);
   });
 
   ui.bindStartButton(() => {
@@ -85,7 +100,7 @@ export function init(onBack: () => void): void {
   ui.bindResultButtons(
     () => {
       // RETRY: 選択済みのColorを引き継いだままブートから再生し直す。
-      state = game.createInitialState(state.phrases, state.settings);
+      state = game.createInitialState(state.phrases, state.settings, state.songInfo);
       state.screen = "play";
       ui.showScreen("play");
       game.startBoot(state);
@@ -93,7 +108,7 @@ export function init(onBack: () => void): void {
     () => {
       // TITLE: 選択済みのColorを引き継いだままタイトルへ戻る。
       player.requestStop();
-      state = game.createInitialState(state.phrases, state.settings);
+      state = game.createInitialState(state.phrases, state.settings, state.songInfo);
       ui.showScreen("title");
     },
   );
