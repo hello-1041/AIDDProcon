@@ -307,3 +307,12 @@
 #lc-media.lc-media--hidden {
   display: none;
 }
+
+/* 曲の再読み込み中（Start押下〜実データ到着）に、前の曲のクレジットが一瞬
+   見えてしまうのを防ぐための一時的な非表示。lc-media--hiddenのdisplay:noneは
+   要素のレイアウトサイズを0にしてしまい、TextAlive SDK側の内部処理
+   （動画読み込み中の位置追従）がエラーを起こす実機不具合を確認したため、
+   レイアウトサイズを保ったまま見た目だけ消せるvisibility:hiddenを使う。 */
+#lc-media.lc-media--reloading {
+  visibility: hidden;
+}

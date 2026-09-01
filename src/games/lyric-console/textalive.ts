@@ -1,7 +1,8 @@
-import { Player, type IPlayerApp, type PartialVideoEntry } from "textalive-app-api";
+import { Player, type PartialVideoEntry } from "textalive-app-api";
 
 export interface SongOption {
   title: string;
+  artist: string;
   url: string;
   video: PartialVideoEntry;
 }
@@ -10,6 +11,7 @@ export interface SongOption {
 export const SONGS: SongOption[] = [
   {
     title: "こたえて",
+    artist: "imie",
     url: "https://piapro.jp/t/6W2N/20251215164617",
     video: {
       beatId: 4827293,
@@ -21,6 +23,7 @@ export const SONGS: SongOption[] = [
   },
   {
     title: "アフター・ザ・カーテン",
+    artist: "Rulmry",
     url: "https://piapro.jp/t/zoqO/20251214200738",
     video: {
       beatId: 4827294,
@@ -32,6 +35,7 @@ export const SONGS: SongOption[] = [
   },
   {
     title: "シャッターチャンス",
+    artist: "夜未アガリ",
     url: "https://piapro.jp/t/PNpQ/20251209170719",
     video: {
       beatId: 4827295,
@@ -43,6 +47,7 @@ export const SONGS: SongOption[] = [
   },
   {
     title: "世界最後の音楽隊",
+    artist: "夏山よつぎ×ど～ぱみん",
     url: "https://piapro.jp/t/B3yJ/20251215061727",
     video: {
       beatId: 4827296,
@@ -54,6 +59,7 @@ export const SONGS: SongOption[] = [
   },
   {
     title: "トリツクロジー",
+    artist: "鶴三",
     url: "https://piapro.jp/t/QBdL/20251215094303",
     video: {
       beatId: 4827297,
@@ -65,6 +71,7 @@ export const SONGS: SongOption[] = [
   },
   {
     title: "TAKEOVER",
+    artist: "Twinfield",
     url: "https://piapro.jp/t/E2i3/20251215092113",
     video: {
       beatId: 4827298,
@@ -94,8 +101,8 @@ let started = false;
 let videoReady = false;
 let timerReady = false;
 
-function notifyReadyIfComplete(onReady: () => void): void {
-  if (videoReady && timerReady) onReady();
+function notifyReadyIfComplete(onSongReady: () => void): void {
+  if (videoReady && timerReady) onSongReady();
 }
 
 // 一度だけonSongEndを呼ぶための共通ガード。checkSongEndとonStopの両方から
@@ -131,9 +138,14 @@ function beginLoad(player: Player, song: SongOption): void {
   player.createFromSongUrl(song.url, { video: song.video });
 }
 
+// onAppReadyはアプリ（TextAlive埋め込み）自体の起動完了、onSongReadyは実際の
+// 楽曲データ（歌詞フレーズ等）の読み込み完了を表す。両者は発火タイミングが
+// 大きく異なりうる（onSongReadyはStart押下後のloadSong発行を待つ）ため、
+// 別々のコールバックとして分離する。
 export function createPlayer(
   token: string,
-  onReady: () => void,
+  onAppReady: () => void,
+  onSongReady: () => void,
   onSongEnd: () => void,
 ): Player {
   const player = new Player({
@@ -150,20 +162,18 @@ export function createPlayer(
   player.volume = DEFAULT_VOLUME;
 
   player.addListener({
-    onAppReady: (app: IPlayerApp) => {
-      if (!app.managed) {
-        beginLoad(player, DEFAULT_SONG);
-      }
+    onAppReady: () => {
+      onAppReady();
     },
     onVideoReady: () => {
       ended = false;
       started = false;
       videoReady = true;
-      notifyReadyIfComplete(onReady);
+      notifyReadyIfComplete(onSongReady);
     },
     onTimerReady: () => {
       timerReady = true;
-      notifyReadyIfComplete(onReady);
+      notifyReadyIfComplete(onSongReady);
     },
     onPlay: () => {
       started = true;
@@ -202,19 +212,6 @@ export function computeLyricPhraseEntries(player: Player): LyricPhraseEntry[] {
   return player.video.phrases
     .map((phrase) => ({ text: phrase.text, startTime: phrase.startTime }))
     .filter((entry) => entry.text.length > 0);
-}
-
-export interface SongInfo {
-  name: string;
-  artist: string;
-}
-
-// onReady後に一度だけ呼ぶ。ブートシーケンスの表示用に、曲名・アーティスト名を
-// player.data.songから取り出す（楽曲クレジット自体は.textalive-bannerが別途
-// 担うため、ここでは純粋にフレーバー表示として使う）。
-export function getSongInfo(player: Player): SongInfo {
-  const song = player.data.song;
-  return { name: song.name, artist: song.artist.name };
 }
 
 // requestPlay()を呼んだあと、一定時間内にonPlay（startedフラグ）が発火しなければ

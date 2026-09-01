@@ -42,13 +42,19 @@ export function init(onBack: () => void): void {
   const player = textalive.createPlayer(
     token,
     () => {
-      // onVideoReady/onTimerReady: 歌詞情報が確定し、プレイ可能になった。
-      // 既に選択済みのColorはそのまま引き継ぐ。
-      const phrases = textalive.computeLyricPhraseEntries(player);
-      const songInfo = textalive.getSongInfo(player);
-      state = game.createInitialState(phrases, state.settings, songInfo);
+      // アプリ（TextAlive埋め込み）自体の起動完了。以降、選曲はローカルな状態
+      // 更新のみでネットワーク通信を伴わないため、一度有効化すれば選び直す
+      // たびに無効化し直す必要はない。
       ui.setStartEnabled(true);
       ui.setSongOptionButtonsEnabled(true);
+    },
+    () => {
+      // 実データ（歌詞フレーズ）が届いた。ブート進行（waitingTrackからの復帰）は
+      // updateBootPhase側で毎フレーム判定するため、ここでは値を保存するだけ。
+      const phrases = textalive.computeLyricPhraseEntries(player);
+      game.completeTrackLoad(state, phrases);
+      // 新しい曲のクレジットに更新された後で表示する（Start押下時に隠している）。
+      ui.setMediaVisible(true);
     },
     handleSongEnd,
   );
@@ -60,23 +66,29 @@ export function init(onBack: () => void): void {
   });
 
   ui.bindSongOptionButtons((index) => {
-    // 選曲中（createFromSongUrlの応答待ち）に別の曲を選ばれると、videoReady/
-    // timerReadyの早期発火競合を招くため、ロード完了までSong・Start双方を
-    // 無効化して直列化する（textalive.loadSong参照）。
+    // 実データの読み込みはStart押下時まで遅延するため、ここではローカルな
+    // 状態更新のみ（ネットワーク通信を伴わないため、選び直しても競合しない）。
     const song = textalive.SONGS[index];
     game.setSong(state, song);
     ui.updateSongOptionButtons(index);
-    ui.setStartEnabled(false);
-    ui.setSongOptionButtonsEnabled(false);
-    textalive.loadSong(player, song);
   });
 
   ui.bindStartButton(() => {
     state.screen = "play";
     ui.showScreen("play");
-    // ブートは曲の再生と並行させない。「ready.」表示後、入力を待ってから
-    // 曲を再生する（フィードバック1.3：並行させるとイントロの短い曲で
-    // 歌詞がバースト表示される不具合があったため）。
+    // showScreen("play")は#lc-mediaを無条件に表示状態へ戻すが、この時点では
+    // まだ前の曲のクレジットが残っている（SDKが自前で書き換える要素のため）。
+    // 新しい実データが届く（onSongReady）まで、改めて隠しておく。
+    ui.setMediaVisible(false);
+    // 読み込み済みの曲でも常に読み込み直す（単純さ優先）ため、古いtrackLoadedを
+    // 先に破棄しておく。実際のtextalive.loadSong発行は、ブートが「loading
+    // track」行のタイプを始めた瞬間まで遅延させる（下のループのpendingTrackLoad
+    // 参照）。演出上「読み込んでいる」と主張するタイミングと、実際に読み込みを
+    // 始めるタイミングを一致させるため。
+    game.beginTrackLoad(state);
+    // ブートは曲の再生と並行させない。「press any key to continue」表示後、
+    // 入力を待ってから曲を再生する（フィードバック1.3：並行させるとイントロの
+    // 短い曲で歌詞がバースト表示される不具合があったため）。
     game.startBoot(state);
   });
 
@@ -99,16 +111,18 @@ export function init(onBack: () => void): void {
 
   ui.bindResultButtons(
     () => {
-      // RETRY: 選択済みのColorを引き継いだままブートから再生し直す。
-      state = game.createInitialState(state.phrases, state.settings, state.songInfo);
+      // RETRY: 選択済みのColor・読み込み済みデータを引き継いだままブートから
+      // 再生し直す（再読み込みはしない。読み込み待ちのスピナーも挟まない）。
+      state = game.createInitialState(state.phrases, state.settings, true);
       state.screen = "play";
       ui.showScreen("play");
       game.startBoot(state);
     },
     () => {
-      // TITLE: 選択済みのColorを引き継いだままタイトルへ戻る。
+      // TITLE: 選択済みのColor・読み込み済みデータを引き継いだままタイトルへ
+      // 戻る（別の曲を選べばgame.setSongが読み込み済みフラグを破棄する）。
       player.requestStop();
-      state = game.createInitialState(state.phrases, state.settings, state.songInfo);
+      state = game.createInitialState(state.phrases, state.settings, true);
       ui.showScreen("title");
     },
   );
@@ -156,14 +170,27 @@ export function init(onBack: () => void): void {
     // コンテンツ全体を道連れにしない）。
     try {
       if (state.screen === "play") {
-        const songPosition = player.timer.position;
         ui.updateSpinner(now);
-        ui.updateProgressBar(game.getProgressPercent(songPosition, player.video.duration));
-        ui.updateVocalMeter(player.getVocalAmplitude(songPosition), player.getMaxVocalAmplitude());
-        updateDebugSeek(songPosition);
+        // player.timer/player.videoは、実データ読み込み（trackLoaded）が完了する
+        // までは安全にアクセスできない（Start押下直後・loadingTrack待機中は
+        // 未読み込みでありうる）。songPositionは未読み込み時0のままでよい
+        // （lyricsフェーズに到達するのは必ずtrackLoaded後のため、これによる
+        // 不整合は起きない）。
+        let songPosition = 0;
+        if (state.trackLoaded) {
+          songPosition = player.timer.position;
+          ui.updateProgressBar(game.getProgressPercent(songPosition, player.video.duration));
+          ui.updateVocalMeter(player.getVocalAmplitude(songPosition), player.getMaxVocalAmplitude());
+          updateDebugSeek(songPosition);
+        }
 
         if (state.phase === "boot") {
           game.updateBootPhase(state, dtMs);
+          // loading track行のタイプ開始と同時に実際の読み込みを発行する
+          // （game.updateBootPhase内でpendingTrackLoadが立った直後に消費する）。
+          if (game.takePendingTrackLoad(state)) {
+            textalive.loadSong(player, state.settings.song);
+          }
         } else if (state.phase === "lyrics") {
           textalive.checkSongEnd(player, songPosition, handleSongEnd);
           game.updateLyricTyping(state, songPosition);

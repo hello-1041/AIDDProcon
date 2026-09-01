@@ -68,6 +68,16 @@ export function advanceSequentialTyper(state: SequentialTyperState, dtMs: number
   }
 }
 
+// ブート（loadingTrack待機）・ステータスバーの両方が共有するスピナー表示。
+export const SPINNER_FRAMES = ["|", "/", "-", "\\"];
+export const SPINNER_INTERVAL_MS = 120;
+
+// nowMsには`requestAnimationFrame`のタイムスタンプ等、単調増加するms値を渡す。
+export function computeSpinnerFrame(nowMs: number): string {
+  const frame = Math.floor(nowMs / SPINNER_INTERVAL_MS) % SPINNER_FRAMES.length;
+  return SPINNER_FRAMES[frame];
+}
+
 // 描画用に「確定済み行」と「現在タイプ中の部分文字列」を取り出す。
 export function getVisibleLines(state: SequentialTyperState): {
   completed: string[];
