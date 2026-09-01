@@ -1,36 +1,46 @@
 import * as typewriter from "./typewriter.ts";
-import type { LyricPhraseEntry, SongInfo, SongOption } from "./textalive.ts";
+import type { LyricPhraseEntry, SongOption } from "./textalive.ts";
 import { DEFAULT_SONG } from "./textalive.ts";
 
 export type Screen = "title" | "play" | "result";
-// boot: ブートシーケンスをタイプ中 / waitingForStart: ブート完了、入力待ち（曲は未再生）
-// / lyrics: 曲再生中、歌詞タイプ演出中
+// boot: ブートシーケンスをタイプ中（loading track行の実読み込み待ちも含む）
+// / waitingForStart: ブート完了、入力待ち（曲は未再生） / lyrics: 曲再生中、
+// 歌詞タイプ演出中
 export type Phase = "boot" | "waitingForStart" | "lyrics";
 export type ColorTheme = "GREEN" | "AMBER" | "WHITE";
 
 export const COLOR_THEMES: ColorTheme[] = ["GREEN", "AMBER", "WHITE"];
 
-// ブートシーケンス固定行。曲名・アーティスト名・歌詞フレーズ数は、実際に
-// 読み込んだ楽曲データ（textalive.getSongInfo/computeLyricPhraseEntries）を
-// そのまま差し込む。固定フレーバー行の中に実データを混ぜることで、
-// 「その場で読み込んでいる」感を出す狙い。
-function buildBootLines(color: ColorTheme, songInfo: SongInfo | null, phraseCount: number): string[] {
-  const trackLine = songInfo
-    ? `loading track: ${songInfo.name} — ${songInfo.artist}`
-    : "loading track: (no song loaded)";
+// ブート内部の進行段階。pre/postは複数行を一括タイプ、trackは「loading
+// track: ...」の1行のみ、waitingTrackはタイプすべき行がなくスピナーのみ
+// 表示する待機区間。
+type BootStage = "pre" | "track" | "waitingTrack" | "post";
+
+// loading track行のタイプが終わってから、実データ（歌詞フレーズ）が届くまでの
+// 最短表示時間。読み込みがこれより速く終わっても、体感上「読み込んでいる」と
+// 分かる程度はスピナーを見せる。読み込みがこれより遅ければ、届くまで延長する。
+const MIN_LOADING_TRACK_DISPLAY_MS = 1000;
+
+function buildPreTrackLines(): string[] {
   return [
-    "booting AIDDProcon terminal...",
     "cd AIDDProcon",
+    "booting AIDDProcon terminal...",
     "mounting /dev/lyrics...",
     "loading modules: TYPEWRITER, SCROLLBACK, THEME... OK",
     "handshake: TextAlive API... OK",
-    trackLine,
-    `indexing lyric phrases... ${phraseCount} entries found`,
-    `color ${color}`,
-    "mode AutoView",
-    "calibrating cursor blink... OK",
-    "ready.",
   ];
+}
+
+// 曲名・アーティスト名はSongOption側で決め打ちのデータのため、この行自体の
+// テキストは開始時点で完全に確定する。この行のタイプ開始と同時に実際の
+// 読み込み（textalive.loadSong）を発行することで、演出上「読み込んでいる」と
+// 主張するタイミングと、実際に読み込みを始めるタイミングを一致させる。
+function buildTrackLine(song: SongOption): string {
+  return `loading track: ${song.title} — ${song.artist}`;
+}
+
+function buildPostTrackLines(color: ColorTheme): string[] {
+  return [`color ${color}`, "mode AutoView", "calibrating cursor blink... OK"];
 }
 
 // ブート完了後、曲再生を開始する前に表示する入力待ちの一言。
@@ -54,32 +64,51 @@ export interface GameState {
   phase: Phase;
   settings: GameSettings;
   phrases: LyricPhraseEntry[];
-  songInfo: SongInfo | null;
+  trackLoaded: boolean;
   phraseCursor: number;
   activePhrase: LyricPhraseEntry | null;
   consoleLines: string[];
   currentLine: string | null;
   bootTyper: typewriter.SequentialTyperState | null;
   shutdownTyper: typewriter.SequentialTyperState | null;
+  bootStage: BootStage;
+  // 現在のbootTyperより前に確定済みの行。bootTyperを複数回作り直す（pre→track→
+  // post）ため、typewriter.getVisibleLines().completedは直近のtyper内の行しか
+  // 返さない。それより前の確定済み行をここに保持し、毎フレーム連結する。
+  bootCommittedPrefix: string[];
+  loadingTrackElapsedMs: number;
+  // trueの間、実際の読み込み（textalive.loadSong）が未発行。loading track行の
+  // タイプ開始と同時にtrueになる。index.ts側が毎フレーム確認し、発行したら
+  // takePendingTrackLoadで消費する。
+  pendingTrackLoad: boolean;
+  // このブート試行で実際に読み込みを発行したか（RETRYのように読み込み済み
+  // データを使い回す場合はfalseのまま）。falseならwaitingTrackの最低表示時間を
+  // 適用せず、trackLoaded済みの行タイプ完了後すぐに次へ進む。
+  trackLoadTriggered: boolean;
 }
 
 export function createInitialState(
   phrases: LyricPhraseEntry[],
   keepSettings?: GameSettings,
-  songInfo: SongInfo | null = null,
+  trackLoaded = false,
 ): GameState {
   return {
     screen: "title",
     phase: "boot",
     settings: keepSettings ? { ...keepSettings } : { color: "GREEN", song: DEFAULT_SONG },
     phrases,
-    songInfo,
+    trackLoaded,
     phraseCursor: 0,
     activePhrase: null,
     consoleLines: [],
     currentLine: null,
     bootTyper: null,
     shutdownTyper: null,
+    bootStage: "pre",
+    bootCommittedPrefix: [],
+    loadingTrackElapsedMs: 0,
+    pendingTrackLoad: false,
+    trackLoadTriggered: false,
   };
 }
 
@@ -87,8 +116,24 @@ export function setColor(state: GameState, color: ColorTheme): void {
   state.settings.color = color;
 }
 
+// 選曲・Start押下、いずれの経路でも読み込み済みデータを破棄するための共通処理。
+function resetTrackData(state: GameState): void {
+  state.trackLoaded = false;
+  state.phrases = [];
+}
+
 export function setSong(state: GameState, song: SongOption): void {
   state.settings.song = song;
+  resetTrackData(state);
+}
+
+// Start押下時に呼ぶ。読み込み済みの曲でも常に読み込み直す（単純さ優先）ため、
+// 古いtrackLoadedを確実に落としておく。実際のtextalive.loadSong発行は、
+// loading track行のタイプ開始と同時（updateBootPhase→pendingTrackLoad）まで
+// 遅延される。RETRYからは呼ばない（読み込み済みデータをそのまま使い、最低
+// 表示時間の待機を挟まないため）。
+export function beginTrackLoad(state: GameState): void {
+  resetTrackData(state);
 }
 
 // スタート／リトライ操作から呼ぶ。プレイ画面の疑似ターミナルが最初に流す
@@ -99,23 +144,83 @@ export function startBoot(state: GameState): void {
   state.activePhrase = null;
   state.consoleLines = [];
   state.currentLine = null;
-  state.bootTyper = typewriter.createSequentialTyper(
-    buildBootLines(state.settings.color, state.songInfo, state.phrases.length),
-  );
+  state.bootStage = "pre";
+  state.bootCommittedPrefix = [];
+  state.loadingTrackElapsedMs = 0;
+  state.trackLoadTriggered = false;
+  state.bootTyper = typewriter.createSequentialTyper(buildPreTrackLines());
+}
+
+// 実際に読み込みを発行すべきタイミングになったかどうかを消費する。trueが
+// 返るのは一度きり（呼んだ側でtextalive.loadSongを発行する責務を持つ）。
+export function takePendingTrackLoad(state: GameState): boolean {
+  if (!state.pendingTrackLoad) return false;
+  state.pendingTrackLoad = false;
+  return true;
 }
 
 export function updateBootPhase(state: GameState, dtMs: number): void {
+  if (state.bootStage === "waitingTrack") {
+    state.loadingTrackElapsedMs += dtMs;
+    // スピナーは新しい行としてではなく、loading track行そのものの続き
+    // （アーティスト名の右に空白を挟んだ位置）として同一行に表示する。
+    state.currentLine =
+      `${buildTrackLine(state.settings.song)} ${typewriter.computeSpinnerFrame(state.loadingTrackElapsedMs)}`;
+    if (state.trackLoaded && state.loadingTrackElapsedMs >= MIN_LOADING_TRACK_DISPLAY_MS) {
+      state.currentLine = null;
+      state.bootCommittedPrefix = [...state.bootCommittedPrefix, buildTrackLine(state.settings.song)];
+      state.consoleLines = state.bootCommittedPrefix;
+      state.bootStage = "post";
+      state.bootTyper = typewriter.createSequentialTyper(buildPostTrackLines(state.settings.color));
+    }
+    return;
+  }
+
   if (!state.bootTyper) return;
   typewriter.advanceSequentialTyper(state.bootTyper, dtMs);
   const visible = typewriter.getVisibleLines(state.bootTyper);
-  state.consoleLines = visible.completed;
+  state.consoleLines = [...state.bootCommittedPrefix, ...visible.completed];
   state.currentLine = state.bootTyper.finished ? null : visible.current;
-  if (state.bootTyper.finished) {
-    state.consoleLines = [...state.bootTyper.lines, WAITING_FOR_START_HINT];
-    state.currentLine = null;
+  if (!state.bootTyper.finished) return;
+
+  state.bootTyper = null;
+
+  if (state.bootStage === "pre") {
+    state.bootCommittedPrefix = state.consoleLines;
+    state.bootStage = "track";
+    state.bootTyper = typewriter.createSequentialTyper([buildTrackLine(state.settings.song)]);
+    if (!state.trackLoaded) {
+      state.pendingTrackLoad = true;
+      state.trackLoadTriggered = true;
+    }
+  } else if (state.bootStage === "track") {
+    if (state.trackLoaded && !state.trackLoadTriggered) {
+      // RETRY等、今回のブートで読み込みを発行していない（=読み込み済み
+      // データをそのまま使う）場合は、最低表示時間を適用せず即座に進める。
+      state.bootCommittedPrefix = state.consoleLines;
+      state.bootStage = "post";
+      state.bootTyper = typewriter.createSequentialTyper(buildPostTrackLines(state.settings.color));
+    } else {
+      // loading track行はまだconsoleLinesへ確定しない。waitingTrack中は
+      // 「行全文＋空白＋スピナー」を同一行のcurrentLineとして表示し続ける
+      // ため、いったんconsoleLinesから外す（bootCommittedPrefixは直前の
+      // pre行群のまま据え置く）。
+      state.consoleLines = state.bootCommittedPrefix;
+      state.bootStage = "waitingTrack";
+      state.loadingTrackElapsedMs = 0;
+    }
+  } else if (state.bootStage === "post") {
+    state.consoleLines = [...state.consoleLines, WAITING_FOR_START_HINT];
     state.phase = "waitingForStart";
-    state.bootTyper = null;
   }
+}
+
+// 実データ（歌詞フレーズ）到着時に呼ぶ。ブート進行中の状態を破壊しないよう、
+// stateを丸ごと差し替えず必要な項目だけを更新する。ブート進行（waitingTrack
+// からの復帰）はupdateBootPhase側で毎フレーム判定する。
+export function completeTrackLoad(state: GameState, phrases: LyricPhraseEntry[]): void {
+  state.phrases = phrases;
+  state.trackLoaded = true;
 }
 
 // waitingForStartからの入力受理を示す一言。press any key to continueに対する応答として

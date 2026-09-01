@@ -1,4 +1,5 @@
 import type { Screen, ColorTheme } from "./game.ts";
+import { computeSpinnerFrame } from "./typewriter.ts";
 
 const rootEl = document.querySelector<HTMLElement>("#game-lyric-console")!;
 const titleDescEl = document.querySelector<HTMLElement>(".lc-title-desc")!;
@@ -43,6 +44,16 @@ export function showScreen(screen: Screen): void {
   if (screen !== "result") {
     resultStatsEl.classList.remove("lc-result-stats--visible");
   }
+}
+
+// #lc-mediaはTextAlive SDKが自前で内容を書き換えるため、新しい曲の実データが
+// 届くまでは前の曲のクレジットが残ったまま見えてしまう。Start押下時に明示的に
+// 隠し、実データ到着（game.completeTrackLoad）後に再表示する（index.ts参照）。
+// lc-media--hidden（display:none）ではなくlc-media--reloading（visibility:hidden）
+// を使う。読み込み中にdisplay:noneで要素サイズを0にすると、TextAlive SDK側の
+// 位置追従処理が壊れる実機不具合を確認したため。
+export function setMediaVisible(visible: boolean): void {
+  lcMediaEl.classList.toggle("lc-media--reloading", !visible);
 }
 
 export function showTokenError(message: string): void {
@@ -232,13 +243,9 @@ export function updateProgressBar(percent: number): void {
   progressEl.textContent = `${PROGRESS_LABEL}[${bar}] ${Math.floor(percent)}%`;
 }
 
-const SPINNER_FRAMES = ["|", "/", "-", "\\"];
-const SPINNER_INTERVAL_MS = 120;
-
 // nowMsには`requestAnimationFrame`のタイムスタンプ等、単調増加するms値を渡す。
 export function updateSpinner(nowMs: number): void {
-  const frame = Math.floor(nowMs / SPINNER_INTERVAL_MS) % SPINNER_FRAMES.length;
-  spinnerEl.textContent = SPINNER_FRAMES[frame];
+  spinnerEl.textContent = computeSpinnerFrame(nowMs);
 }
 
 const VOCAL_METER_LENGTH = 10;
