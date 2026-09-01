@@ -10,26 +10,23 @@ export type ColorTheme = "GREEN" | "AMBER" | "WHITE";
 
 export const COLOR_THEMES: ColorTheme[] = ["GREEN", "AMBER", "WHITE"];
 
-// ブートシーケンス固定行。曲名・アーティスト名・歌詞フレーズ数は、実際に
-// 読み込んだ楽曲データ（textalive.getSongInfo/computeLyricPhraseEntries）を
-// そのまま差し込む。固定フレーバー行の中に実データを混ぜることで、
-// 「その場で読み込んでいる」感を出す狙い。
-function buildBootLines(color: ColorTheme, songInfo: SongInfo | null, phraseCount: number): string[] {
+// ブートシーケンス固定行。曲名・アーティスト名は、実際に読み込んだ楽曲
+// データ（textalive.getSongInfo）をそのまま差し込む。固定フレーバー行の
+// 中に実データを混ぜることで、「その場で読み込んでいる」感を出す狙い。
+function buildBootLines(color: ColorTheme, songInfo: SongInfo | null): string[] {
   const trackLine = songInfo
     ? `loading track: ${songInfo.name} — ${songInfo.artist}`
     : "loading track: (no song loaded)";
   return [
-    "booting AIDDProcon terminal...",
     "cd AIDDProcon",
+    "booting AIDDProcon terminal...",
     "mounting /dev/lyrics...",
     "loading modules: TYPEWRITER, SCROLLBACK, THEME... OK",
     "handshake: TextAlive API... OK",
     trackLine,
-    `indexing lyric phrases... ${phraseCount} entries found`,
     `color ${color}`,
     "mode AutoView",
     "calibrating cursor blink... OK",
-    "ready.",
   ];
 }
 
@@ -100,7 +97,7 @@ export function startBoot(state: GameState): void {
   state.consoleLines = [];
   state.currentLine = null;
   state.bootTyper = typewriter.createSequentialTyper(
-    buildBootLines(state.settings.color, state.songInfo, state.phrases.length),
+    buildBootLines(state.settings.color, state.songInfo),
   );
 }
 
