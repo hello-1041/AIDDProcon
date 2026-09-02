@@ -232,10 +232,17 @@ export function getResultTerminalEl(): HTMLElement {
 
 const PROGRESS_BAR_LENGTH = 10;
 
-// モノスペースフォント前提で、VOLメーター側のラベル（updateVocalMeter参照）と
-// `[`の位置を文字数で揃える。ステータスバーが折り返して2行になったとき
-// （.lc-status-readout参照）、両方のバーの開始位置が縦に揃って見える。
-const PROGRESS_LABEL = "Loading... ";
+// 再生位置（曲全体に対する進捗率）を示すラベル。以前は端末風の飾りとして
+// "Loading... "としていたが、ブートに実際の読み込み演出が入った結果、再生中に
+// "Loading"と表示され続けるのが実態と食い違うようになったため改めた。
+//
+// VOLメーター側のラベル（HTML側の.lc-vol-label）との`[`の整列は、CSS側で
+// .lc-vol-labelにこのラベルと同じ幅（5ch）を与えることで取っている。長さを
+// 変える場合はstyle.css側の幅も併せて直すこと。
+//
+// なお"POS"（position）は、日本語圏ではPOS端末（point of sale）の連想が強く
+// 誤読を招くため採らない。
+const PROGRESS_LABEL = "PROG ";
 
 export function updateProgressBar(percent: number): void {
   const filled = Math.round((percent / 100) * PROGRESS_BAR_LENGTH);
@@ -250,15 +257,20 @@ export function updateSpinner(nowMs: number): void {
 
 const VOCAL_METER_LENGTH = 10;
 
-// ラベル（"VOL "）と`[`の位置合わせはCSS側（.lc-vol-label、コンテナクエリ）に委ねる。
+// ラベル（"VOL "）と`[`の位置合わせはCSS側（.lc-vol-labelの幅指定）に委ねる。
 // ここではバー本体（[...]）だけを書き込む。JS側で折り返し状態を判定して文言を
 // 出し分ける方式は、判定対象の幅自体が出し分けた文言の幅に左右されてしまい
 // （表示中の文言によって折り返し判定が変わり、判定結果によってまた文言が変わる）、
 // 一度折り返すと戻すときだけ閾値がずれるヒステリシスを引き起こしていたため廃止した。
+//
+// 塗り潰しには"#"を使う。"*"は本来が脚注記号でグリフが字面の上寄りに置かれるため、
+// 並べるとバーの下半分が空白に見える。"█"（U+2588）の方が見た目は良いが、
+// DotGothic16が持たない場合にフォールバックで別フォントに差し替わり、この画面が
+// 全面的に依存している等幅の整列が崩れるため採らない。
 export function updateVocalMeter(amplitude: number, maxAmplitude: number): void {
   const ratio = maxAmplitude > 0 ? Math.min(1, Math.max(0, amplitude / maxAmplitude)) : 0;
   const filled = Math.round(ratio * VOCAL_METER_LENGTH);
-  const bar = "*".repeat(filled) + " ".repeat(VOCAL_METER_LENGTH - filled);
+  const bar = "#".repeat(filled) + " ".repeat(VOCAL_METER_LENGTH - filled);
   vocalBarEl.textContent = `[${bar}]`;
 }
 
