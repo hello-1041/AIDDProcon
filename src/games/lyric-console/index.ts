@@ -182,6 +182,13 @@ export function init(onBack: () => void): void {
           ui.updateProgressBar(game.getProgressPercent(songPosition, player.video.duration));
           ui.updateVocalMeter(player.getVocalAmplitude(songPosition), player.getMaxVocalAmplitude());
           updateDebugSeek(songPosition);
+        } else {
+          // 実データ読み込み前でもステータスバーは0値で描き続ける。バーの描画まで
+          // trackLoadedのガード内に入れてしまうと、ブート中だけ`Loading...`とVOL
+          // メーターの`[]`が消え、スピナーだけが残る（ラベル"VOL "はHTML側の静的
+          // テキストのため、文字だけ残って見える）。
+          ui.updateProgressBar(0);
+          ui.updateVocalMeter(0, 0);
         }
 
         if (state.phase === "boot") {
