@@ -159,13 +159,17 @@ export function takePendingTrackLoad(state: GameState): boolean {
   return true;
 }
 
-export function updateBootPhase(state: GameState, dtMs: number): void {
+export function updateBootPhase(state: GameState, dtMs: number, nowMs: number): void {
   if (state.bootStage === "waitingTrack") {
     state.loadingTrackElapsedMs += dtMs;
     // スピナーは新しい行としてではなく、loading track行そのものの続き
     // （アーティスト名の右に空白を挟んだ位置）として同一行に表示する。
+    // 駆動源にはloadingTrackElapsedMs（0起点の経過ms）ではなくnowMs（rAFの
+    // タイムスタンプ）を使う。ステータスバーの#lc-spinnerがnow駆動のため、
+    // 0起点だと同じ記号列・同じ間隔でありながら位相がずれ、2つのスピナーが
+    // 別々の向きを向いてしまう。
     state.currentLine =
-      `${buildTrackLine(state.settings.song)} ${typewriter.computeSpinnerFrame(state.loadingTrackElapsedMs)}`;
+      `${buildTrackLine(state.settings.song)} ${typewriter.computeSpinnerFrame(nowMs)}`;
     if (state.trackLoaded && state.loadingTrackElapsedMs >= MIN_LOADING_TRACK_DISPLAY_MS) {
       state.currentLine = null;
       state.bootCommittedPrefix = [...state.bootCommittedPrefix, buildTrackLine(state.settings.song)];
