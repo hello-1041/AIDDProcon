@@ -192,7 +192,7 @@ export function init(onBack: () => void): void {
         }
 
         if (state.phase === "boot") {
-          game.updateBootPhase(state, dtMs);
+          game.updateBootPhase(state, dtMs, now);
           // loading track行のタイプ開始と同時に実際の読み込みを発行する
           // （game.updateBootPhase内でpendingTrackLoadが立った直後に消費する）。
           if (game.takePendingTrackLoad(state)) {
