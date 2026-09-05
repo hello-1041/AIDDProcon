@@ -202,10 +202,10 @@
       <div id="game-lyric-search" class="game-section">
         <section id="ls-screen-title" class="screen">
           <h1 id="ls-title-logo">Lyric-Search</h1>
-          <!-- トークン未設定時のエラー表示欄も兼ねる（既存3作と同じ役割分担）。 -->
-          <p class="ls-title-desc">
-            流れる歌詞の言葉を、5×5の文字盤からなぞって探し出そう
-          </p>
+          <!-- 説明文は削除済み（実装指摘1）。この要素自体はトークン未設定時の
+               エラー表示欄として ui.showTokenError から使い回すため、空のまま残す
+               （歌詞コンソールの .lc-title-desc と同じ扱い）。 -->
+          <p class="ls-title-desc"></p>
 
           <div class="ls-setting-group">
             <span class="ls-setting-label">Song</span>

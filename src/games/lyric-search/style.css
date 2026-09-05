@@ -303,13 +303,26 @@
 }
 
 /* 開発用UI。既定は非表示にしておき、index.tsがDEV環境でのみ表示・配線する
-   （歌詞コンソールの#lc-debug-seekと同じ方針）。 */
+   （歌詞コンソールの#lc-debug-seekと同じ方針）。
+
+   画面下部に固定で重ねる（実装指摘2）。プレイ画面はガイド＋盤面＋ステータスで
+   画面高をほぼ使い切る設計のため、通常のフローに置くと画面外へはみ出して操作
+   できない。かといって盤面の寸法計算に加算すると、DEV環境とそれ以外で盤面の
+   大きさが変わり、レイアウトの実機確認がDEVでできなくなる。開発用の道具が
+   レイアウトの検証を妨げないよう、フローから外す。 */
 .ls-debug {
   display: none;
+  position: fixed;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0.25rem;
+  z-index: 90;
   align-items: center;
   gap: 0.5rem;
-  width: 100%;
-  max-width: 30rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.4rem;
+  background: rgba(255, 255, 255, 0.85);
+  box-sizing: border-box;
 }
 
 .ls-debug--visible {
@@ -334,6 +347,14 @@
   justify-content: flex-start;
   padding: 1.5rem 1rem;
   gap: 0.75rem;
+}
+
+/* #ls-media（画面右下固定の楽曲情報バナー）とボタンが重なるため、ボタン群を
+   バナーの手前で止める（実装指摘5）。バナー側を動かすとプレイ画面の
+   ステータスエリアと干渉するため、リザルト側で避ける。
+   値は #ls-media の bottom: 2.5rem ＋ バナー自体の高さ約2rem に余裕を足したもの。 */
+#ls-screen-result .result-buttons {
+  margin-bottom: 5rem;
 }
 
 .ls-result-title {
