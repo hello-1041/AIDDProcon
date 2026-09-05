@@ -195,11 +195,17 @@ export function loadSong(player: Player, song: SongOption): void {
 
 // ============================================================== 対象語の抽出
 
-/** 取得対象となる歌詞の単位。TextAlive App APIのIWord1件に対応する（計画書3.1）。 */
+/**
+ * 取得対象となる歌詞の単位（計画書3.1、実装指摘8）。
+ *
+ * `IWord`（形態素）1件ではなく、**付属語を連結した文節に近い単位**である。
+ * 形態素のままでは「なっ」「た」「い」「て」「も」のように分割されて直観に反し、
+ * 実測でも対象語の44.2%が1文字語になっていた（12.1）。連結規則は`mergeUnits`参照。
+ */
 export interface TargetWord {
   /** 対象語のインスタンスを一意に指すID。同じ文字列が曲中に複数回現れても別物として扱う。 */
   id: string;
-  /** IWord.textの原文。リザルト画面の表示に使う（計画書3.9）。 */
+  /** 連結元の原文をそのまま繋いだもの。リザルト画面とガイドの表示に使う（計画書3.9）。 */
   text: string;
   /** 照合用文字列（正規化済み）。盤面への配置と照合はこちらを使う。 */
   match: string;
@@ -226,24 +232,47 @@ export interface SongTargets {
   freq: FreqTable;
 }
 
+/** 付属語。直前の語に必ず連結する（P: 助詞、M: 助動詞）。 */
+const DEPENDENT_POS = new Set(["P", "M"]);
+
+/**
+ * 1文字のときだけ直前に連結する品詞（用言・付属語）。
+ *
+ * 「過ぎ｜て｜く」の「く」のような1文字の用言を拾うための規則。**名詞(N)は
+ * 含めない。** 1文字の名詞まで吸収すると「あなたは手を」「集まる人」のように
+ * 文節境界を越えて繋がり、今度は語が不自然に長くなる（実装指摘8の規則比較）。
+ */
+const CONJUGATABLE_POS = new Set(["V", "J", "M", "P"]);
+
+/** 直前の語に連結すべきか（実装指摘8の採用規則R2b）。 */
+function shouldAttach(pos: string, matchLength: number): boolean {
+  return DEPENDENT_POS.has(pos) || (matchLength === 1 && CONJUGATABLE_POS.has(pos));
+}
+
 /**
  * onSongReady後に一度だけ呼ぶ。player.video.wordsから対象語を抽出する（計画書3.1）。
  *
- * 除外するのは以下の3種。いずれも取得手段が存在しないため、スコアの分母にも
- * リザルト一覧にも含めない（計画書3.1・3.8・3.9）。
+ * `IWord`は形態素単位であり、助詞・助動詞が独立した1語として得られる。そのままでは
+ * 「なっ」「た」「い」「て」「も」のように分割されて直観に反するため、**付属語と
+ * 1文字の用言を直前の語へ連結し、文節に近い単位へ畳む**（実装指摘8）。実データでの
+ * 効果は、1文字語が44.2%→4.4%、対象語数が1896→1136。最長語は10文字のまま変わらず、
+ * 配置保証も破綻しない（諦め・全再生成とも0件）。
+ *
+ * 連結の障壁（またいで繋がないもの）は次の3つ。
  *
  * - 品詞が記号（pos === "S"）の語。正規表現に頼らず品詞で判定する
  * - 正規化後に空文字列となる語
- * - 照合用文字列がMAX_TARGET_LENを超える語（経路として置けない。実測では0件）
+ * - フレーズの切れ目
  *
- * IWordは形態素単位であり、助詞・助動詞は独立した1語として得られる。したがって
- * 「助詞などは一文字でも取得される」という要件は、追加の分割処理なしに満たされる。
+ * 連結後の照合用文字列がMAX_TARGET_LENを超える語は除外する（経路として置けない。
+ * 実測では0件）。除外した語は取得手段が無いため、スコアの分母にもリザルト一覧にも
+ * 含めない（計画書3.1・3.8・3.9）。
  */
 export function computeTargetWords(player: Player): SongTargets {
   const video = player.video;
 
   // IPhraseのオブジェクト参照から添字を引く表。IWord.parentが返すのは
-  // IPhraseの実体のため、参照で照合できる（実測で全1896語が親を持ち欠損ゼロ）。
+  // IPhraseの実体のため、参照で照合できる（実測で全語が親を持ち欠損ゼロ）。
   const phraseIndexOf = new Map<unknown, number>();
   video.phrases.forEach((phrase, index) => phraseIndexOf.set(phrase, index));
 
@@ -257,36 +286,67 @@ export function computeTargetWords(player: Player): SongTargets {
   const words: TargetWord[] = [];
   const charCounts = new Map<string, number>();
 
+  // 連結中の単位。障壁に当たるか、連結できない語が来た時点で確定させる。
+  let pending: TargetWord | null = null;
+
+  const flush = (): void => {
+    if (!pending) return;
+    const target = pending;
+    pending = null;
+    if (target.match.length === 0 || target.match.length > MAX_TARGET_LEN) return;
+    words.push(target);
+    phrases[target.phraseIndex].words.push(target);
+    // ダミー文字は「その楽曲の歌詞全文に出現する文字」から抽選する（計画書3.7）。
+    // 歌詞に存在しない文字を混ぜないことで、盤面が「その曲の歌詞らしい」見た目を保つ。
+    for (const ch of target.match) {
+      charCounts.set(ch, (charCounts.get(ch) ?? 0) + 1);
+    }
+  };
+
   video.words.forEach((word, wordIndex) => {
-    if (isSymbolWord(word.pos)) return;
-    const match = normalizeWord(word.text);
-    if (match.length === 0 || match.length > MAX_TARGET_LEN) return;
-
     const phraseIndex = phraseIndexOf.get(word.parent);
-    if (phraseIndex === undefined) return;
+    const match = normalizeWord(word.text);
 
-    const target: TargetWord = {
-      id: `w${wordIndex}`,
+    // 障壁：記号・正規化で消える語・親フレーズが引けない語
+    if (isSymbolWord(word.pos) || match.length === 0 || phraseIndex === undefined) {
+      flush();
+      return;
+    }
+
+    if (pending && pending.phraseIndex === phraseIndex && shouldAttach(word.pos, match.length)) {
+      pending.text += word.text;
+      pending.match += match;
+      pending.endTime = word.endTime;
+      return;
+    }
+
+    flush();
+    pending = {
+      id: `u${wordIndex}`,
       text: word.text,
       match,
       startTime: word.startTime,
       endTime: word.endTime,
       phraseIndex,
     };
-    words.push(target);
-    phrases[phraseIndex].words.push(target);
+  });
+  flush();
 
-    // ダミー文字は「その楽曲の歌詞全文に出現する文字」から抽選する（計画書3.7）。
-    // 歌詞に存在しない文字を混ぜないことで、盤面が「その曲の歌詞らしい」見た目を保つ。
-    for (const ch of match) {
-      charCounts.set(ch, (charCounts.get(ch) ?? 0) + 1);
-    }
+  // 対象語を1つも持たないフレーズ（記号のみ等）は、ガイド表示の対象にならないため
+  // 落とす。落とさないと「探す語が無いフレーズ」が表示中フレーズになる。
+  //
+  // 落とした後は**必ず添字を振り直すこと。** `TargetPhrase.index` と
+  // `TargetWord.phraseIndex` は game.ts 側で `targets.phrases[i]` の添字として
+  // 直接使われる。元の`video.phrases`上の位置のまま残すと、1本でも落ちた時点で
+  // 配列位置とずれ、別のフレーズを参照する。
+  const kept = phrases.filter((p) => p.words.length > 0);
+  kept.forEach((phrase, index) => {
+    phrase.index = index;
+    for (const word of phrase.words) word.phraseIndex = index;
   });
 
   return {
-    // 対象語を1つも持たないフレーズ（記号のみ等）は、ガイド表示の対象にならない
-    // ため落とす。落とさないと「探す語が無いフレーズ」が表示中フレーズになる。
-    phrases: phrases.filter((p) => p.words.length > 0),
+    phrases: kept,
     words,
     freq: buildFreqTable(charCounts),
   };
