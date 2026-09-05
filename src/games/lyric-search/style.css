@@ -17,8 +17,11 @@
   --ls-muted: #9bb3c4; /* 取り逃し・グレーアウト */
 
   /* 4.5 寸法。ガイドとステータスは固定高（可変にすると盤面が上下に跳ね、
-     3.6が禁じる「盤面が落ち着かない状態」と同じ害になる）。 */
-  --ls-guide-h: 4.5rem;
+     3.6が禁じる「盤面が落ち着かない状態」と同じ害になる）。
+     ガイドは2フレーズ分を並べるため2段ぶんを確保する（実装指摘6）。
+     375×667での縦の検算：ガイド88px＋盤面343px＋ステータス48px＋余白＝およそ510px。
+     盤面の1マスは (343 - 枠6 - 余白8 - 隙間16) / 5 ＝ 約62.6px でタップに十分。 */
+  --ls-guide-h: 5.5rem;
   --ls-status-h: 3rem;
 
   /* 盤面の一辺のマス数。JS側（board.ts の GRID_N）から設定する。
@@ -95,15 +98,31 @@
    可変にすると盤面が上下に跳ねる（4.5）。 */
 .ls-guide {
   display: flex;
-  flex-wrap: wrap;
-  align-content: center;
+  flex-direction: column;
   justify-content: center;
-  gap: 0.3rem;
+  gap: 0.2rem;
   width: 100%;
   min-height: var(--ls-guide-h);
   height: var(--ls-guide-h);
   overflow: hidden;
   box-sizing: border-box;
+}
+
+/* 1行＝1フレーズ。有効なフレーズを歌い出し順に積む（実装指摘6）。 */
+.ls-guide-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  overflow: hidden;
+}
+
+/* まだ歌われていない次フレーズ。色ではなく明度と大きさで一段控えめにし、
+   今どちらを歌っているかを示す（4.3 制約2により、状態を色で表さない）。 */
+.ls-guide-row--next {
+  opacity: 0.72;
+  font-size: 0.88em;
 }
 
 .ls-chip {

@@ -254,22 +254,42 @@ export interface GuideChip {
   state: ChipState;
 }
 
+/** ガイド1行分（＝1フレーズ）。 */
+export interface GuideRow {
+  chips: GuideChip[];
+  /** 今まさに歌われているフレーズか（実装指摘4）。 */
+  current: boolean;
+}
+
 /**
- * 表示中フレーズを語チップとして描画する。
+ * 有効フレーズを語チップとして描画する。
  *
  * このエリアは演出ではなく必須の機能である。「フレーズを表示中に、その中の語を
  * 盤面から探す」という基本サイクルそのものを担う部分であり、これが無ければ何を
  * 探せばよいか分からずゲームが成立しない（計画書4.1）。
+ *
+ * 有効なフレーズを歌い出し順にすべて並べる（実装指摘6）。`ACTIVE_PHRASE_MAX = 2`
+ * により次フレーズの語も既に取得可能であり、1本しか出さないと「盤面に置かれていて
+ * 取れば得点になるのに、画面のどこにも表示されていない語」が生まれてしまう。
+ * 歌い終わったフレーズは失効とともに上から抜け、次のフレーズが下に入る。
  */
-export function renderGuide(chips: readonly GuideChip[]): void {
+export function renderGuide(rows: readonly GuideRow[]): void {
   guideEl.innerHTML = "";
-  for (const chip of chips) {
-    const el = document.createElement("span");
-    el.className = "ls-chip";
-    if (chip.state === "got") el.classList.add("ls-chip--got");
-    else if (chip.state === "missed") el.classList.add("ls-chip--missed");
-    el.textContent = chip.text;
-    guideEl.appendChild(el);
+  for (const row of rows) {
+    const rowEl = document.createElement("div");
+    rowEl.className = "ls-guide-row";
+    // 歌われていない側（先行提示中の次フレーズ）は一段控えめに出し、
+    // 今どちらを歌っているかを色ではなく明度で示す。
+    if (!row.current) rowEl.classList.add("ls-guide-row--next");
+    for (const chip of row.chips) {
+      const el = document.createElement("span");
+      el.className = "ls-chip";
+      if (chip.state === "got") el.classList.add("ls-chip--got");
+      else if (chip.state === "missed") el.classList.add("ls-chip--missed");
+      el.textContent = chip.text;
+      rowEl.appendChild(el);
+    }
+    guideEl.appendChild(rowEl);
   }
 }
 

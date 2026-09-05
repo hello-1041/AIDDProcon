@@ -46,18 +46,24 @@ export interface GameState {
   acquired: Map<string, number>;
   /** 取り逃し確定の対象語ID。 */
   missed: Set<string>;
-  /** 現在有効なフレーズの添字（有効期限が早い順。先頭が表示中フレーズ）。 */
+  /** 現在有効なフレーズの添字。**歌い出しが早い順**（＝ガイドの表示順）。 */
   activePhrases: number[];
   /** 選択中のセル添字（選択順）。空なら非選択。 */
   selection: number[];
   /** pointerdown〜pointerupの間だけtrue。 */
   selecting: boolean;
   /**
-   * 直近に観測した再生位置。
+   * `pointerdown` の時点で有効だった対象語。
    *
-   * 選択中は有効語プールの更新そのものを凍結する（下記）ため、pointerup後に
-   * 「いつの時点まで進んでいたか」を知る必要がある。毎フレーム更新する。
+   * なぞり始めた語が、指を離す直前に照合対象から外れるのを防ぐ（計画書3.4）。
+   * 照合はこれと「現在有効な語」の和集合に対して行う。
    */
+  selectionSnapshot: TargetWord[];
+  /** 選択中に溜まった、セルを解放すべき対象語ID（取り逃し確定分）。 */
+  pendingClearIds: string[];
+  /** 選択中に溜まった、盤面を作り直す必要があるという要求。 */
+  pendingRebuild: boolean;
+  /** 直近に観測した再生位置。 */
   lastPosition: number;
   trackLoaded: boolean;
 }
@@ -82,6 +88,9 @@ export function createInitialState(settings: GameSettings, targets: SongTargets 
     activePhrases: [],
     selection: [],
     selecting: false,
+    selectionSnapshot: [],
+    pendingClearIds: [],
+    pendingRebuild: false,
     lastPosition: 0,
     trackLoaded: targets !== null,
   };
@@ -111,6 +120,9 @@ export function completeTrackLoad(state: GameState, targets: SongTargets): void 
   state.activePhrases = [];
   state.selection = [];
   state.selecting = false;
+  state.selectionSnapshot = [];
+  state.pendingClearIds = [];
+  state.pendingRebuild = false;
   state.lastPosition = 0;
 }
 
@@ -122,17 +134,93 @@ function phraseDeadline(state: GameState, phraseIndex: number): number {
   return phrase.endTime + TAIL_MS;
 }
 
-/** 表示中フレーズ。最も期限が早い有効フレーズ（計画書2章の用語定義）。 */
+/**
+ * 表示中フレーズ＝**今まさに歌われているフレーズ**（実装指摘4で定義を変更）。
+ *
+ * 初版は計画書2章の用語定義（「最も期限が早い有効フレーズ」）をそのまま実装していたが、
+ * この定義はフレーズが重なる場面で必ず古い方を選ぶ。実測のフレーズ間隔は中央値
+ * 114〜618ms（12.5）であり、`TAIL_MS = 1000` を足すと**歌が次のフレーズに入ってから
+ * 約0.4〜0.9秒ガイドが前のフレーズを表示し続ける**。重なり率88〜97%からして、これは
+ * 例外ではなく定常状態であり、「楽曲とずれている」という体感の主因だった。
+ *
+ * そこで「既に歌い始めているもののうち最も遅く始まったもの」を表示中とする。
+ * まだどれも歌い始めていない場合（前奏中・先行提示のみ）はnullを返す。ガイドは
+ * どの行も「歌唱中」とは表示しない。
+ */
 export function currentPhraseIndex(state: GameState): number | null {
-  return state.activePhrases.length > 0 ? state.activePhrases[0] : null;
+  const phrases = effectivePhrases(state);
+  if (phrases.length === 0 || !state.targets) return null;
+  // 歌い出しが早い順に持っている。後ろから見て、最初に「もう歌い始めている」ものを採る。
+  for (let i = phrases.length - 1; i >= 0; i--) {
+    const index = phrases[i];
+    if (state.targets.phrases[index].startTime <= state.lastPosition) return index;
+  }
+  // まだどのフレーズも歌い始めていない（前奏中）。
+  return null;
 }
 
-/** 現時点で取得可能な対象語。所属フレーズが有効期間内で、かつ未取得のもの。 */
+/**
+ * ガイドに並べるフレーズ（実装指摘6）。歌い出しが早い順、最大`ACTIVE_PHRASE_MAX`本。
+ *
+ * `ACTIVE_PHRASE_MAX = 2` により次フレーズの語は既に有効語プールに入っており、
+ * 配置保証の対象にもなりうる（3.4）。初版はガイドに1本しか出しておらず、
+ * 「盤面に置かれていて取れば得点になるのに、画面のどこにも表示されていない語」が
+ * 常に存在していた。プールと表示を一致させる。
+ */
+export function guidePhrases(state: GameState): number[] {
+  return effectivePhrases(state);
+}
+
+/**
+ * 盤面とガイドが共通の対象とするフレーズ。
+ *
+ * 基本は有効フレーズそのものだが、**前奏中（第1フレーズの歌い出し前）に限り、
+ * 第1フレーズを先出しする**（実装指摘7）。実測では6曲中3曲で第1フレーズの有効化が
+ * 再生位置0より後にあり、こたえてでは17.5秒、世界最後の音楽隊では12.2秒に及ぶ。
+ * この間を空の盤面で潰す理由はなく、前奏を探索時間として使えるようにする。
+ *
+ * **盤面とガイドで必ず同じものを使うこと。** 盤面にだけ先出しするとガイドが空になり、
+ * 何を探せばよいか分からない。ガイドにだけ出すと配置保証されていない語を探させる。
+ *
+ * 曲の途中の間奏（有効フレーズが一時的に無くなる場面）には適用しない。そこで次の
+ * フレーズを先出しすると、配置保証されていない語をガイドに出すことになる。
+ */
+function effectivePhrases(state: GameState): number[] {
+  if (state.activePhrases.length > 0) return state.activePhrases;
+  const first = state.targets?.phrases[0];
+  if (first && state.lastPosition < first.startTime) return [first.index];
+  return [];
+}
+
+/**
+ * 現時点で取得可能な対象語。所属フレーズが有効期間内で、かつ未取得のもの。
+ * **有効期限が早い順**に返す（照合で同一文字列の複数インスタンスを解決するため）。
+ */
 export function activeWords(state: GameState): TargetWord[] {
   if (!state.targets) return [];
+  const byDeadline = [...effectivePhrases(state)].sort(
+    (a, b) => phraseDeadline(state, a) - phraseDeadline(state, b),
+  );
+  return collectWords(state, byDeadline);
+}
+
+/**
+ * 配置保証の優先順に並べた対象語（計画書3.4）。
+ *
+ * 表示中フレーズ（＝今歌われているフレーズ）の語を先頭に置き、残りを後ろに繋ぐ。
+ * プレイヤーが今探している対象を、常に配置保証の優先対象とするため。
+ */
+function priorityWords(state: GameState): TargetWord[] {
+  const phrases = effectivePhrases(state);
+  const current = currentPhraseIndex(state);
+  const order = current === null ? phrases : [current, ...phrases.filter((i) => i !== current)];
+  return collectWords(state, order);
+}
+
+function collectWords(state: GameState, phraseOrder: readonly number[]): TargetWord[] {
   const out: TargetWord[] = [];
-  for (const phraseIndex of state.activePhrases) {
-    for (const word of state.targets.phrases[phraseIndex].words) {
+  for (const phraseIndex of phraseOrder) {
+    for (const word of state.targets!.phrases[phraseIndex].words) {
       if (!state.acquired.has(word.id)) out.push(word);
     }
   }
@@ -156,9 +244,11 @@ function recomputeActivePhrases(state: GameState, songPosition: number): boolean
     const to = phrase.endTime + TAIL_MS;
     if (songPosition >= from && songPosition <= to) next.push(phrase.index);
   }
-  // 有効期限が早い順に並べ、上限で切る。先頭が表示中フレーズになる。
+  // 上限で切る際は「有効期限が早い＝先に消えるもの」を優先して残す。
   next.sort((a, b) => phraseDeadline(state, a) - phraseDeadline(state, b));
   const capped = next.slice(0, ACTIVE_PHRASE_MAX);
+  // 保持は歌い出し順にする。ガイドの表示順（実装指摘6）がこの並びになる。
+  capped.sort((a, b) => state.targets!.phrases[a].startTime - state.targets!.phrases[b].startTime);
 
   const same =
     capped.length === state.activePhrases.length &&
@@ -182,13 +272,13 @@ function recomputeActivePhrases(state: GameState, songPosition: number): boolean
  * のは無駄であり、探し甲斐のある2文字以上の語が盤面に載らなくなる害がある。
  * 1文字語はensureSingleCharsで別途保証する。
  */
-function placeTargetsOf(state: GameState): PlaceTarget[] {
+function placeTargetsOf(state: GameState, words: readonly TargetWord[]): PlaceTarget[] {
   const out: PlaceTarget[] = [];
   const lineMode = state.settings.selectionMode === "line";
-  for (const word of activeWords(state)) {
+  for (const word of words) {
     if (out.length >= PLACE_MAX) break;
     if (word.match.length < 2) continue;
-    // 直線モードでは一列に収まらない語（実測で1.8%）を配置保証の対象外とする
+    // 直線モードでは一列に収まらない語を配置保証の対象外とする
     // （計画書3.1。分割機構は経路方式の採用に伴い全廃している）。
     if (lineMode && word.match.length > GRID_N) continue;
     out.push({ id: word.id, text: word.match });
@@ -196,10 +286,16 @@ function placeTargetsOf(state: GameState): PlaceTarget[] {
   return out;
 }
 
-/** 1文字語の軽い保証の対象（有効期限が早い順）。 */
-function singleCharsOf(state: GameState): string[] {
+/**
+ * 1文字語の軽い保証の対象（優先順）。
+ *
+ * 対象語を文節単位に連結した結果（実装指摘8）、1文字語は44.2%から4.4%へ減った。
+ * ただし残った1文字語は「し」「今」「影」のような低頻度の語であり、ダミー抽選で
+ * 盤面に現れる確率はむしろ下がる（フォールバック発火率 20.9%→34.8%）。削除不可。
+ */
+function singleCharsOf(words: readonly TargetWord[]): string[] {
   const out: string[] = [];
-  for (const word of activeWords(state)) {
+  for (const word of words) {
     if (word.match.length === 1) out.push(word.match);
   }
   return out;
@@ -220,7 +316,11 @@ function singleCharsOf(state: GameState): string[] {
  * ④〜⑦は同一フレーム内の同期処理であり、時間的な遅延を挟まない。セルが空のまま
  * でいるのは⑤〜⑥の計算が終わるまでの一瞬で、フレームをまたがない。
  */
-function releasePlaceRefill(state: GameState, clearIds: readonly string[]): BoardChanges {
+function rebuildBoard(
+  state: GameState,
+  clearIds: readonly string[],
+  words: readonly TargetWord[],
+): BoardChanges {
   const board = state.board;
   const freq = state.targets?.freq ?? null;
 
@@ -228,13 +328,13 @@ function releasePlaceRefill(state: GameState, clearIds: readonly string[]): Boar
   for (const id of clearIds) board.clearTarget(id);
 
   // ⑤ 配置保証の再評価
-  const changes = board.placeAll(placeTargetsOf(state), state.settings.selectionMode);
+  const changes = board.placeAll(placeTargetsOf(state, words), state.settings.selectionMode);
 
   // ⑥ 補充（残った空セルをダミー文字で埋める）
   changes.written.push(...board.fillEmpty(freq));
 
   // ⑦ 1文字語の保証。⑥の後でなければ「盤面に文字が無い」の判定ができない。
-  changes.overwritten.push(...board.ensureSingleChars(singleCharsOf(state)));
+  changes.overwritten.push(...board.ensureSingleChars(singleCharsOf(words)));
 
   return changes;
 }
@@ -242,13 +342,20 @@ function releasePlaceRefill(state: GameState, clearIds: readonly string[]): Boar
 /**
  * 初期盤面の生成（計画書5.5・3.4のトリガ1）。
  *
- * 空盤面に対してplaceTargetsを実行し、残りをダミー文字で埋める。曲の頭では
- * 有効フレーズが1本も無いことが普通（第1フレーズの歌い出しがLEAD_MSより後）
- * だが、その場合も盤面はダミーで満たしておく。空の格子を見せないため。
+ * **時刻判定を経由せず、第1フレーズの語を配置保証の対象として渡す**（実装指摘7）。
+ * 初版は再生位置0で有効フレーズを計算していたが、第1フレーズが有効になるのは
+ * `startTime - LEAD_MS` 以降であり、実測では6曲中3曲でこの時刻が0より後にある。
+ * 該当曲では初期盤面が純ダミーになり、直後（シャッターチャンスでは0.5秒後）に
+ * 盤面が丸ごと書き換わっていた。
+ *
+ * 第1フレーズの語を最初から置いておけば、その後で当該フレーズが有効化されても
+ * `isPlaced` が成立するため盤面は動かない。前奏が長い曲（こたえて17.5秒、
+ * 世界最後の音楽隊12.2秒）では、歌い出しまでを探索時間として使えるようになる。
  */
 export function generateInitialBoard(state: GameState, songPosition = 0): BoardChanges {
+  state.lastPosition = songPosition;
   recomputeActivePhrases(state, songPosition);
-  return releasePlaceRefill(state, []);
+  return rebuildBoard(state, [], priorityWords(state));
 }
 
 /**
@@ -264,23 +371,31 @@ function settle(state: GameState, extraClearIds: readonly string[]): BoardChange
   if (!state.targets) return null;
 
   const before = new Set(state.activePhrases);
-  const changed = recomputeActivePhrases(state, state.lastPosition);
-
-  const cleared: string[] = [...extraClearIds];
-  if (changed) {
+  if (recomputeActivePhrases(state, state.lastPosition)) {
     const nowActive = new Set(state.activePhrases);
     for (const phraseIndex of before) {
       if (nowActive.has(phraseIndex)) continue;
       for (const word of state.targets.phrases[phraseIndex].words) {
         if (state.acquired.has(word.id)) continue;
         state.missed.add(word.id);
-        cleared.push(word.id);
+        state.pendingClearIds.push(word.id);
       }
     }
+    state.pendingRebuild = true;
+  }
+  if (extraClearIds.length > 0) {
+    state.pendingClearIds.push(...extraClearIds);
+    state.pendingRebuild = true;
   }
 
-  if (!changed && cleared.length === 0) return null;
-  return releasePlaceRefill(state, cleared);
+  // 選択中は盤面だけ据え置く（実装指摘3）。有効語プールとガイドは上で既に進めている。
+  if (state.selecting) return null;
+  if (!state.pendingRebuild) return null;
+
+  const clearIds = state.pendingClearIds;
+  state.pendingClearIds = [];
+  state.pendingRebuild = false;
+  return rebuildBoard(state, clearIds, priorityWords(state));
 }
 
 /**
@@ -288,12 +403,14 @@ function settle(state: GameState, extraClearIds: readonly string[]): BoardChange
  *
  * 配置保証の再評価は計画書3.4の3タイミングでのみ行う。毎フレームは実行しない。
  *
- * **選択中（pointerdown〜pointerup）は、有効語プールの更新ごと凍結する。**
- * フレーズの失効はプレイヤーの指の動きと無関係に起き、実測のフレーズ間隔は
- * 中央値114〜618ms（12.5）であるため、「なぞっている最中に指の下のセルが
- * 書き換わる」ことは日常的に起きる。凍結するのが盤面だけでは足りない：
- * プールだけ先に進むと、なぞり始めた時点で有効だった語が、指を離す直前に
- * 照合対象から消えてしまう（計画書3.4）。
+ * **選択中（pointerdown〜pointerup）に据え置くのは盤面の書き換えだけである**
+ * （実装指摘3）。フレーズの失効はプレイヤーの指の動きと無関係に起き、実測の
+ * フレーズ間隔は中央値114〜618ms（12.5）であるため、「なぞっている最中に指の下の
+ * セルが書き換わる」ことは日常的に起きる。これは防がねばならない。
+ *
+ * 初版はこれを有効語プールの更新ごと止めることで実現していたが、ガイド表示まで
+ * 巻き添えにして固まっていた。現在はプールとガイドは進め、なぞり始めた語が
+ * 照合対象から外れる問題は`selectionSnapshot`との和集合で防いでいる。
  */
 export function update(state: GameState, songPosition: number): BoardChanges | null {
   state.lastPosition = songPosition;
@@ -303,10 +420,11 @@ export function update(state: GameState, songPosition: number): BoardChanges | n
 
 // ================================================== 3.5 選択状態機械と照合
 
-/** pointerdown。選択の起点を確定する。 */
+/** pointerdown。選択の起点を確定し、この時点の有効語を控える（計画書3.4）。 */
 export function beginSelection(state: GameState, idx: number): void {
   state.selecting = true;
   state.selection = [idx];
+  state.selectionSnapshot = activeWords(state);
 }
 
 /**
@@ -343,10 +461,11 @@ export function extendSelection(state: GameState, idx: number): boolean {
   return true;
 }
 
-/** 選択を破棄する（pointercancel等）。 */
+/** 選択を破棄する（pointercancel等）。据え置いていた盤面の更新は次のupdateで消化される。 */
 export function cancelSelection(state: GameState): void {
   state.selection = [];
   state.selecting = false;
+  state.selectionSnapshot = [];
 }
 
 /**
@@ -370,19 +489,22 @@ export function endSelection(state: GameState): MatchResult {
   const reversed = [...s].reverse().join("");
   state.selecting = false;
 
-  // 保留していた再評価より先に照合する。なぞり始めた時点で有効だった語を、
-  // 指を離す直前に無効化しないため（計画書3.4）。
+  // 照合の対象は「なぞり始めた時点で有効だった語」と「現在有効な語」の和集合
+  // （計画書3.4）。なぞっている最中にフレーズが失効しても、始めた時点で狙えた語は
+  // 取れる。有効期限が早い順に見て、最初の一致を採る（同一文字列の複数インスタンスは
+  // 期限が最も早いものを1件だけ取得する。計画書3.5）。
   let hit: TargetWord | null = null;
   if (s.length > 0) {
-    for (const word of activeWords(state)) {
-      if (word.match !== s && word.match !== reversed) continue;
-      // activeWordsは有効期限が早い順に並んでいるため、最初の一致を採ればよい
-      hit = word;
-      break;
+    const byId = new Map<string, TargetWord>();
+    for (const word of [...activeWords(state), ...state.selectionSnapshot]) {
+      if (!state.acquired.has(word.id)) byId.set(word.id, word);
     }
+    const candidates = [...byId.values()].sort((a, b) => a.endTime - b.endTime);
+    hit = candidates.find((w) => w.match === s || w.match === reversed) ?? null;
   }
 
   state.selection = [];
+  state.selectionSnapshot = [];
 
   // 取得確定なら取得済みに記録する。不一致でもペナルティは設けない（計画書3.5）。
   if (hit) state.acquired.set(hit.id, state.acquired.size);

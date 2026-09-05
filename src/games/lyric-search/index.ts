@@ -215,23 +215,27 @@ export function init(onBack: () => void): void {
   };
 
   function renderGuideIfChanged(): void {
-    const phraseIndex = game.currentPhraseIndex(state);
-    const signature = `${phraseIndex}/${state.acquired.size}/${state.missed.size}`;
+    const phrases = game.guidePhrases(state);
+    const current = game.currentPhraseIndex(state);
+    const signature = `${phrases.join(",")}/${current}/${state.acquired.size}/${state.missed.size}`;
     if (signature === guideSignature) return;
     guideSignature = signature;
 
-    if (phraseIndex === null || !state.targets) {
+    if (!state.targets) {
       ui.renderGuide([]);
       return;
     }
     ui.renderGuide(
-      state.targets.phrases[phraseIndex].words.map((word) => ({
-        text: word.text,
-        state: state.acquired.has(word.id)
-          ? ("got" as const)
-          : state.missed.has(word.id)
-            ? ("missed" as const)
-            : ("pending" as const),
+      phrases.map((phraseIndex) => ({
+        current: phraseIndex === current,
+        chips: state.targets!.phrases[phraseIndex].words.map((word) => ({
+          text: word.text,
+          state: state.acquired.has(word.id)
+            ? ("got" as const)
+            : state.missed.has(word.id)
+              ? ("missed" as const)
+              : ("pending" as const),
+        })),
       })),
     );
   }
