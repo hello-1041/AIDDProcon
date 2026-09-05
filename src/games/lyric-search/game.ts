@@ -1,5 +1,4 @@
 import {
-  ACTIVE_PHRASE_MAX,
   Board,
   DEFAULT_SELECTION_MODE,
   GRID_N,
@@ -46,7 +45,12 @@ export interface GameState {
   acquired: Map<string, number>;
   /** 取り逃し確定の対象語ID。 */
   missed: Set<string>;
-  /** 現在有効なフレーズの添字。**歌い出しが早い順**（＝ガイドの表示順）。 */
+  /**
+   * 有効フレーズのキュー。`[今のフレーズ, 次のフレーズ]` の順で、最大2本。
+   *
+   * ガイドの表示順・配置保証の優先順・有効語プールのすべてがこの並びを共有する
+   * （recomputeActivePhrases 参照）。
+   */
   activePhrases: number[];
   /** 選択中のセル添字（選択順）。空なら非選択。 */
   selection: number[];
@@ -128,99 +132,42 @@ export function completeTrackLoad(state: GameState, targets: SongTargets): void 
 
 // ==================================================== 有効期間・有効語プール
 
-/** フレーズの有効期間の終端（計画書3.3）。この時刻を過ぎると取り逃し確定。 */
-function phraseDeadline(state: GameState, phraseIndex: number): number {
-  const phrase = state.targets!.phrases[phraseIndex];
-  return phrase.endTime + TAIL_MS;
-}
-
 /**
- * 表示中フレーズ＝**今まさに歌われているフレーズ**（実装指摘4で定義を変更）。
+ * 今まさに歌われているフレーズ。キューの先頭が歌い始めていればそれを返す。
  *
- * 初版は計画書2章の用語定義（「最も期限が早い有効フレーズ」）をそのまま実装していたが、
- * この定義はフレーズが重なる場面で必ず古い方を選ぶ。実測のフレーズ間隔は中央値
- * 114〜618ms（12.5）であり、`TAIL_MS = 1000` を足すと**歌が次のフレーズに入ってから
- * 約0.4〜0.9秒ガイドが前のフレーズを表示し続ける**。重なり率88〜97%からして、これは
- * 例外ではなく定常状態であり、「楽曲とずれている」という体感の主因だった。
- *
- * そこで「既に歌い始めているもののうち最も遅く始まったもの」を表示中とする。
- * まだどれも歌い始めていない場合（前奏中・先行提示のみ）はnullを返す。ガイドは
- * どの行も「歌唱中」とは表示しない。
+ * まだどれも歌い始めていない場合（前奏中・間奏中で次の先行提示だけがある場合）は
+ * nullを返す。ガイドはどの行も「歌唱中」とは表示しない。
  */
 export function currentPhraseIndex(state: GameState): number | null {
-  const phrases = effectivePhrases(state);
-  if (phrases.length === 0 || !state.targets) return null;
-  // 歌い出しが早い順に持っている。後ろから見て、最初に「もう歌い始めている」ものを採る。
-  for (let i = phrases.length - 1; i >= 0; i--) {
-    const index = phrases[i];
-    if (state.targets.phrases[index].startTime <= state.lastPosition) return index;
-  }
-  // まだどのフレーズも歌い始めていない（前奏中）。
-  return null;
+  const first = state.activePhrases[0];
+  if (first === undefined || !state.targets) return null;
+  // キューの先頭以外が「歌唱中」になることはない（recomputeActivePhrases参照）。
+  return state.targets.phrases[first].startTime <= state.lastPosition ? first : null;
 }
 
 /**
- * ガイドに並べるフレーズ（実装指摘6）。歌い出しが早い順、最大`ACTIVE_PHRASE_MAX`本。
+ * ガイドに並べるフレーズ（実装指摘6）。先頭が上段＝今のフレーズ。
  *
- * `ACTIVE_PHRASE_MAX = 2` により次フレーズの語は既に有効語プールに入っており、
- * 配置保証の対象にもなりうる（3.4）。初版はガイドに1本しか出しておらず、
- * 「盤面に置かれていて取れば得点になるのに、画面のどこにも表示されていない語」が
- * 常に存在していた。プールと表示を一致させる。
+ * 盤面の配置保証・有効語プール・ガイド表示は、いずれもこの同じ並びを使う。
+ * 3者がずれると「盤面に置かれていて取れば得点になるのに、画面のどこにも
+ * 表示されていない語」や、その逆が生まれる。
  */
 export function guidePhrases(state: GameState): number[] {
-  return effectivePhrases(state);
+  return state.activePhrases;
 }
 
 /**
- * 盤面とガイドが共通の対象とするフレーズ。
+ * 現時点で取得可能な対象語。キューの順（今のフレーズ→次のフレーズ）で返す。
  *
- * 基本は有効フレーズそのものだが、**前奏中（第1フレーズの歌い出し前）に限り、
- * 第1フレーズを先出しする**（実装指摘7）。実測では6曲中3曲で第1フレーズの有効化が
- * 再生位置0より後にあり、こたえてでは17.5秒、世界最後の音楽隊では12.2秒に及ぶ。
- * この間を空の盤面で潰す理由はなく、前奏を探索時間として使えるようにする。
- *
- * **盤面とガイドで必ず同じものを使うこと。** 盤面にだけ先出しするとガイドが空になり、
- * 何を探せばよいか分からない。ガイドにだけ出すと配置保証されていない語を探させる。
- *
- * 曲の途中の間奏（有効フレーズが一時的に無くなる場面）には適用しない。そこで次の
- * フレーズを先出しすると、配置保証されていない語をガイドに出すことになる。
- */
-function effectivePhrases(state: GameState): number[] {
-  if (state.activePhrases.length > 0) return state.activePhrases;
-  const first = state.targets?.phrases[0];
-  if (first && state.lastPosition < first.startTime) return [first.index];
-  return [];
-}
-
-/**
- * 現時点で取得可能な対象語。所属フレーズが有効期間内で、かつ未取得のもの。
- * **有効期限が早い順**に返す（照合で同一文字列の複数インスタンスを解決するため）。
+ * この並びは同時に、配置保証の優先順（計画書3.4：今探している対象を優先）でも、
+ * 有効期限が早い順（3.5：同一文字列は期限が最も早いインスタンスを取得）でもある。
+ * キューが「今」と「次」の2本しか持たないため、3つの順序が一致する。
  */
 export function activeWords(state: GameState): TargetWord[] {
   if (!state.targets) return [];
-  const byDeadline = [...effectivePhrases(state)].sort(
-    (a, b) => phraseDeadline(state, a) - phraseDeadline(state, b),
-  );
-  return collectWords(state, byDeadline);
-}
-
-/**
- * 配置保証の優先順に並べた対象語（計画書3.4）。
- *
- * 表示中フレーズ（＝今歌われているフレーズ）の語を先頭に置き、残りを後ろに繋ぐ。
- * プレイヤーが今探している対象を、常に配置保証の優先対象とするため。
- */
-function priorityWords(state: GameState): TargetWord[] {
-  const phrases = effectivePhrases(state);
-  const current = currentPhraseIndex(state);
-  const order = current === null ? phrases : [current, ...phrases.filter((i) => i !== current)];
-  return collectWords(state, order);
-}
-
-function collectWords(state: GameState, phraseOrder: readonly number[]): TargetWord[] {
   const out: TargetWord[] = [];
-  for (const phraseIndex of phraseOrder) {
-    for (const word of state.targets!.phrases[phraseIndex].words) {
+  for (const phraseIndex of state.activePhrases) {
+    for (const word of state.targets.phrases[phraseIndex].words) {
       if (!state.acquired.has(word.id)) out.push(word);
     }
   }
@@ -228,34 +175,70 @@ function collectWords(state: GameState, phraseOrder: readonly number[]): TargetW
 }
 
 /**
- * 有効フレーズの集合を再計算する。変化があればtrueを返す。
+ * 有効フレーズのキューを再計算する。変化があればtrueを返す。
  *
- * 有効期間 = [ startTime - LEAD_MS , endTime + TAIL_MS ]（計画書3.3）。
- * 判定の粒度を語ではなくフレーズにしているのは、IWord1語の発声時間が概ね
- * 0.3〜0.8秒であり、語単位では盤面から探し始める前に取り逃しが確定して
- * ゲームとして成立しないため。
+ * **「今のフレーズ」と「次のフレーズ」の2本だけを持つキュー**とする。新しい
+ * フレーズが歌い始まった瞬間に古いものがキューから抜け、繰り上がる。
+ *
+ * 初版は「有効期間 [startTime - LEAD_MS, endTime + TAIL_MS] に入るフレーズを
+ * 集め、期限が早い順に`ACTIVE_PHRASE_MAX`本へ切る」という方式だったが、実測で
+ * 3つの問題が出た（実装指摘・ガイドの再設計）。
+ *
+ * - 2行揃うのは47.4%の時間だけで、40.3%は1行しか出ない（有効期間が重ならない
+ *   場面が多いため）。曲によっては1行が61.1%
+ * - 歌唱中の17.0%（TAKEOVERでは34.4%）で、**既に歌い終わったフレーズが今の
+ *   フレーズより上の行に居座る**。上から読めば「1つ前が光っている」＝ずれて
+ *   見える。これが「楽曲と同期していない」という体感の正体だった
+ * - `ACTIVE_PHRASE_MAX`の切り捨てにより、**歌い出した後で初めて表示される
+ *   フレーズが実在した**（先行提示時間の最小が−586ms。計画書11.3が
+ *   「難易度差ではなく不具合」と予告していたもの）
+ *
+ * キュー方式に変えた実測値は、2行79.9% / 1行10.1% / 既唱が上0.0% / 現在行が
+ * 上段100% / 先行提示は中央値3380ms・最小+114ms。切り捨てが構造的に消えるため、
+ * `ACTIVE_PHRASE_MAX`という上限そのものが不要になった。
+ *
+ * 判定の粒度を語ではなくフレーズにしている理由は計画書3.3のとおり。IWord1語の
+ * 発声時間は概ね0.3〜0.8秒であり、語単位では盤面から探し始める前に取り逃しが
+ * 確定してゲームとして成立しない。
  */
 function recomputeActivePhrases(state: GameState, songPosition: number): boolean {
   if (!state.targets) return false;
+  const phrases = state.targets.phrases;
 
-  const next: number[] = [];
-  for (const phrase of state.targets.phrases) {
-    const from = phrase.startTime - LEAD_MS;
-    const to = phrase.endTime + TAIL_MS;
-    if (songPosition >= from && songPosition <= to) next.push(phrase.index);
+  // 最後に歌い始めたフレーズ。phrasesは歌い出し順に並んでいる。
+  let started = -1;
+  for (let i = 0; i < phrases.length; i++) {
+    if (phrases[i].startTime <= songPosition) started = i;
+    else break;
   }
-  // 上限で切る際は「有効期限が早い＝先に消えるもの」を優先して残す。
-  next.sort((a, b) => phraseDeadline(state, a) - phraseDeadline(state, b));
-  const capped = next.slice(0, ACTIVE_PHRASE_MAX);
-  // 保持は歌い出し順にする。ガイドの表示順（実装指摘6）がこの並びになる。
-  capped.sort((a, b) => state.targets!.phrases[a].startTime - state.targets!.phrases[b].startTime);
+
+  const queue: number[] = [];
+
+  // 上段＝今のフレーズ。歌い始めており、まだ猶予（TAIL_MS）を過ぎていないもの。
+  // 次のフレーズが歌い始めた時点でstartedが進むため、古いフレーズはここで自動的に
+  // 抜ける（「新しいフレーズに入るときに古いフレーズが消える」挙動）。
+  if (started >= 0 && songPosition <= phrases[started].endTime + TAIL_MS) queue.push(started);
+
+  // 下段＝次のフレーズ。今のフレーズがある間は常に出す。これにより先行提示時間は
+  // 「1つ前のフレーズが歌われていた長さ」まで伸び、切り捨ても起きない。
+  const upcoming = started + 1;
+  if (upcoming < phrases.length) {
+    const visible =
+      queue.length > 0 ||
+      // 前奏中は第1フレーズを最初から出す（実装指摘7）。第1フレーズの歌い出しが
+      // 再生位置0より十数秒後にある曲があり、その間を空の盤面で潰す理由はない。
+      upcoming === 0 ||
+      // 間奏中（今のフレーズが消えている）は、従来どおり先行提示時間で判定する。
+      songPosition >= phrases[upcoming].startTime - LEAD_MS;
+    if (visible) queue.push(upcoming);
+  }
 
   const same =
-    capped.length === state.activePhrases.length &&
-    capped.every((v, i) => v === state.activePhrases[i]);
+    queue.length === state.activePhrases.length &&
+    queue.every((v, i) => v === state.activePhrases[i]);
   if (same) return false;
 
-  state.activePhrases = capped;
+  state.activePhrases = queue;
   return true;
 }
 
@@ -355,7 +338,7 @@ function rebuildBoard(
 export function generateInitialBoard(state: GameState, songPosition = 0): BoardChanges {
   state.lastPosition = songPosition;
   recomputeActivePhrases(state, songPosition);
-  return rebuildBoard(state, [], priorityWords(state));
+  return rebuildBoard(state, [], activeWords(state));
 }
 
 /**
@@ -395,7 +378,7 @@ function settle(state: GameState, extraClearIds: readonly string[]): BoardChange
   const clearIds = state.pendingClearIds;
   state.pendingClearIds = [];
   state.pendingRebuild = false;
-  return rebuildBoard(state, clearIds, priorityWords(state));
+  return rebuildBoard(state, clearIds, activeWords(state));
 }
 
 /**

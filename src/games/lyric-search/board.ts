@@ -37,8 +37,10 @@ export const LEAD_MS = 2000;
 /** 歌い終わり後の猶予（計画書3.3）。 */
 export const TAIL_MS = 1000;
 
-/** 同時に有効となるフレーズ数の上限（計画書3.3）。 */
-export const ACTIVE_PHRASE_MAX = 2;
+// 同時に有効となるフレーズ数の上限（計画書3.3の `ACTIVE_PHRASE_MAX`）は廃止した。
+// 有効フレーズを「今のフレーズ＋次のフレーズ」の2本のキューとして持つ方式に変えた
+// ため、上限は構造的に2で固定され、調整の余地が無くなったことによる。
+// 経緯と実測値は game.ts の recomputeActivePhrases を参照。
 
 /** 選択規則。既定は経路方式（曲がってよい）。"line" は実機比較用のオプション。 */
 export type SelectionMode = "path" | "line";
