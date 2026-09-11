@@ -1,5 +1,12 @@
 import { Player, type PartialVideoEntry } from "textalive-app-api";
-import { MAX_TARGET_LEN, buildFreqTable, isSymbolWord, normalizeWord, type FreqTable } from "./board.ts";
+import {
+  MAX_TARGET_LEN,
+  buildFreqTable,
+  isSymbolWord,
+  normalizeWord,
+  toChars,
+  type FreqTable,
+} from "./board.ts";
 
 export interface SongOption {
   title: string;
@@ -139,6 +146,38 @@ function beginLoad(player: Player, song: SongOption): void {
   player.createFromSongUrl(song.url, { video: song.video });
 }
 
+// 再生開始時にライブラリ内部で起きる play() → pause() → play() の連打によって、
+// 最初のplay()のPromiseが AbortError で拒否される。これを握り潰す。
+//
+// 実測（msedge / スタート押下直後）:
+//
+//   play   @4014ms  api.songle.jp/v2/api.js
+//   pause  @4015ms  api.songle.jp/v2/api.js
+//   play   @4038ms  api.songle.jp/v2/api.js
+//   → 1本目のplay()が "The play() request was interrupted by a call to pause()."
+//
+// 3件とも発生元はライブラリ内部であり、24ms以内に完結している（attemptPlayの
+// 再送間隔400msとは無関係で、シークを一切行わない経路でも再現する）。ライブラリが
+// このPromiseにcatchを付けていないため、未処理のrejectionとしてページまで飛ぶ。
+// アプリ側から連打そのものを止める手段は無い。
+//
+// 握り潰す対象は、この症状に一致するAbortErrorだけに限る。自動再生がブロック
+// された場合のNotAllowedError等は名前が異なるため、従来どおり表面化する。
+// また、本当に再生が始まらなかった場合はattemptPlayの再送（onPlay未発火を
+// 400msで検知）が保険として働くため、実害のある失敗を隠すことにはならない。
+let rejectionGuardInstalled = false;
+
+function installPlayRejectionGuard(): void {
+  if (rejectionGuardInstalled) return;
+  rejectionGuardInstalled = true;
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason: unknown = event.reason;
+    if (!(reason instanceof DOMException) || reason.name !== "AbortError") return;
+    if (!reason.message.includes("play()") || !reason.message.includes("pause()")) return;
+    event.preventDefault();
+  });
+}
+
 // onAppReadyはアプリ（TextAlive埋め込み）自体の起動完了、onSongReadyは実際の
 // 楽曲データ（歌詞）の読み込み完了を表す。両者は発火タイミングが大きく
 // 異なりうるため、別々のコールバックとして分離する。
@@ -148,6 +187,8 @@ export function createPlayer(
   onSongReady: () => void,
   onSongEnd: () => void,
 ): Player {
+  installPlayRejectionGuard();
+
   const player = new Player({
     app: { token },
     // 水切リズムの#media、ブロック崩しの#bk-media、歌詞コンソールの#lc-mediaとは
@@ -207,8 +248,14 @@ export interface TargetWord {
   id: string;
   /** 連結元の原文をそのまま繋いだもの。リザルト画面とガイドの表示に使う（計画書3.9）。 */
   text: string;
-  /** 照合用文字列（正規化済み）。盤面への配置と照合はこちらを使う。 */
+  /** 照合用文字列（正規化済み）。照合（文字列比較）はこちらを使う。 */
   match: string;
+  /**
+   * `match`をセル単位へ分解したもの（board.toChars）。盤面への配置と長さ判定は
+   * こちらを使う。`match.length`で数えるとUTF-16コードユニット単位になり、
+   * 基本多言語面外の文字を含む語の必要セル数がずれる。
+   */
+  matchChars: readonly string[];
   startTime: number;
   endTime: number;
   /** 所属フレーズの添字。IWord.parentから直接引く（時刻範囲での突き合わせは不要）。 */
@@ -287,18 +334,23 @@ export function computeTargetWords(player: Player): SongTargets {
   const charCounts = new Map<string, number>();
 
   // 連結中の単位。障壁に当たるか、連結できない語が来た時点で確定させる。
-  let pending: TargetWord | null = null;
+  // matchChars は連結が終わってからでないと確定しないため、ここでは持たせない。
+  let pending: Omit<TargetWord, "matchChars"> | null = null;
 
   const flush = (): void => {
     if (!pending) return;
-    const target = pending;
+    const built = pending;
     pending = null;
-    if (target.match.length === 0 || target.match.length > MAX_TARGET_LEN) return;
+    // 長さはコードポイント数＝必要セル数で数える。String.lengthで数えると、
+    // 基本多言語面外の文字を含む語の必要セル数を過小評価する（board.toChars）。
+    const matchChars = toChars(built.match);
+    if (matchChars.length === 0 || matchChars.length > MAX_TARGET_LEN) return;
+    const target: TargetWord = { ...built, matchChars };
     words.push(target);
     phrases[target.phraseIndex].words.push(target);
     // ダミー文字は「その楽曲の歌詞全文に出現する文字」から抽選する（計画書3.7）。
     // 歌詞に存在しない文字を混ぜないことで、盤面が「その曲の歌詞らしい」見た目を保つ。
-    for (const ch of target.match) {
+    for (const ch of matchChars) {
       charCounts.set(ch, (charCounts.get(ch) ?? 0) + 1);
     }
   };

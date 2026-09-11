@@ -1,5 +1,6 @@
 import type { BoardChanges, SelectionMode } from "./board.ts";
 import type { Board } from "./board.ts";
+import { getScorePercent } from "./game.ts";
 import type { GameState, Screen } from "./game.ts";
 import type { TargetPhrase } from "./textalive.ts";
 
@@ -362,8 +363,9 @@ export function setDebugModeLabel(mode: SelectionMode): void {
  * そもそもTargetPhrase.wordsに入っていない。
  */
 export function showResult(state: GameState): void {
-  const percent = state.targets ? (state.acquired.size / state.targets.words.length) * 100 : 0;
-  resultScoreEl.textContent = `${Math.floor(percent)}%`;
+  // 取得率の計算は game.getScorePercent に一本化する。式を書き直すと、対象語が
+  // 0件の楽曲での 0/0（NaN）の扱いなど、片方だけが守っている条件がすぐにずれる。
+  resultScoreEl.textContent = `${Math.floor(getScorePercent(state))}%`;
 
   resultWordsEl.innerHTML = "";
   for (const phrase of state.targets?.phrases ?? []) {

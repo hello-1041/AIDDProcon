@@ -17,7 +17,10 @@
 /** 盤面の一辺。実測により全6曲で下限値に張り付いたため固定（計画書3.2）。 */
 export const GRID_N = 5;
 
-/** 照合用文字列がこれを超える語は対象語から除外する（経路として置けないため）。 */
+/**
+ * 照合用文字列がこれを超える語は対象語から除外する（経路として置けないため）。
+ * 長さはコードポイント数＝必要セル数で数えること（toChars参照）。
+ */
 export const MAX_TARGET_LEN = GRID_N * GRID_N;
 
 /**
@@ -72,6 +75,20 @@ function widthAndCase(text: string): string {
 /** 照合用文字列を作る。空文字が返った語は対象語に含めない（計画書3.1）。 */
 export function normalizeWord(text: string): string {
   return widthAndCase(String(text ?? "")).replace(STRIP, "");
+}
+
+/**
+ * 照合用文字列を、盤面のセル単位へ分解する。
+ *
+ * **盤面の文字はすべてこの単位で扱うこと。** 文字列のまま`text[i]`で取り出すと
+ * UTF-16コードユニット単位になり、基本多言語面外の文字（𠮷等のSIP漢字・絵文字）が
+ * サロゲート片に割れて別々のセルへ入る。一方、逆順照合（game.tsのendSelection）は
+ * `[...s].reverse()`でコードポイント単位に処理するため、単位が食い違って一致しない。
+ * 長さ判定（MAX_TARGET_LEN・1文字語の判定・直線モードの収まり判定）も同様に、
+ * `String.length`ではなくこの配列長で行う。
+ */
+export function toChars(text: string): string[] {
+  return [...text];
 }
 
 /** 品詞が記号（pos: "S"）の語は、正規化前に対象外とする（計画書3.1）。 */
@@ -137,8 +154,8 @@ type Cell = string | null;
 /** 配置保証の対象1件。id は対象語のインスタンスを一意に指す。 */
 export interface PlaceTarget {
   id: string;
-  /** 照合用文字列（正規化済み）。 */
-  text: string;
+  /** 照合用文字列（正規化済み）をセル単位へ分解したもの。1要素＝1セル（toChars参照）。 */
+  chars: readonly string[];
 }
 
 /** 盤面を書き換えたセルの一覧（演出用。計画書5.1）。 */
@@ -193,11 +210,11 @@ export class Board {
   }
 
   /** 対象語が今も経路（または線分）として成立しているか。 */
-  isPlaced(id: string, text: string): boolean {
+  isPlaced(id: string, chars: readonly string[]): boolean {
     const cells = this.placed.get(id);
-    if (!cells || cells.length !== text.length) return false;
+    if (!cells || cells.length !== chars.length) return false;
     for (let i = 0; i < cells.length; i++) {
-      if (this.cells[cells[i]] !== text[i]) return false;
+      if (this.cells[cells[i]] !== chars[i]) return false;
     }
     return true;
   }
@@ -292,7 +309,7 @@ export class Board {
    * 線分の全列挙は経路では成立しない（長さ5だけで972本、10文字では数十万本規模）
    * ため、目的の文字で枝刈りしながら深さ優先で探す（計画書5.2）。
    */
-  private findPath(text: string, id: string): number[] | null {
+  private findPath(chars: readonly string[], id: string): number[] | null {
     const n = this.n;
     const used = new Array<boolean>(n * n).fill(false);
     const path: number[] = [];
@@ -303,13 +320,13 @@ export class Board {
     const ok = (idx: number, i: number): boolean => {
       const c = this.cells[idx];
       if (c === EMPTY) return true;
-      if (c !== text[i]) return false;
+      if (c !== chars[i]) return false;
       const o = this.owner[idx];
       return o === null || o === id;
     };
 
     const dfs = (i: number): boolean => {
-      if (i === text.length) return true;
+      if (i === chars.length) return true;
       if (--budget < 0) return false;
       for (const nx of shuffled(this.neighborsOf(path[path.length - 1]), this.rng)) {
         if (used[nx] || !ok(nx, i)) continue;
@@ -339,7 +356,7 @@ export class Board {
    * 第2段階の経路探索。上書きを許すが、他の配置保証中の語が占めるセルは避ける。
    * 厳密な最小化は行わず、ランダム再スタートを重ねて上書き数最小の経路を採る。
    */
-  private findPathOverwrite(text: string, id: string): number[] | null {
+  private findPathOverwrite(chars: readonly string[], id: string): number[] | null {
     const n = this.n;
     let best: number[] | null = null;
     let bestCost = Infinity;
@@ -359,13 +376,13 @@ export class Board {
         shuffled(cands, this.rng)
           .map((idx) => {
             const c = this.cells[idx];
-            return { idx, w: c === EMPTY || c === text[i] ? 0 : 1 };
+            return { idx, w: c === EMPTY || c === chars[i] ? 0 : 1 };
           })
           .sort((a, b) => a.w - b.w)
           .map((s) => s.idx);
 
       const dfs = (i: number): boolean => {
-        if (i === text.length) return true;
+        if (i === chars.length) return true;
         if (--budget < 0) return false;
         for (const nx of order(this.neighborsOf(path[path.length - 1]), i)) {
           if (used[nx] || !ok(nx)) continue;
@@ -388,8 +405,8 @@ export class Board {
         if (budget < 0) break;
       }
 
-      if (path.length === text.length) {
-        const cost = this.overwriteCost(path, text);
+      if (path.length === chars.length) {
+        const cost = this.overwriteCost(path, chars);
         if (cost < bestCost) {
           bestCost = cost;
           best = path.slice();
@@ -405,12 +422,12 @@ export class Board {
    * 第1段階の判定（直線モード）：全セルが「空」または「同じ文字」。
    * 同じ文字であっても、他の配置保証中の語が所有するセルは共有しない。
    */
-  private compatible(seg: number[], text: string, id: string): boolean {
+  private compatible(seg: number[], chars: readonly string[], id: string): boolean {
     for (let i = 0; i < seg.length; i++) {
       const idx = seg[i];
       const c = this.cells[idx];
       if (c === EMPTY) continue;
-      if (c !== text[i]) return false;
+      if (c !== chars[i]) return false;
       const o = this.owner[idx];
       if (o !== null && o !== id) return false;
     }
@@ -425,23 +442,23 @@ export class Board {
     return false;
   }
 
-  private overwriteCost(seg: number[], text: string): number {
+  private overwriteCost(seg: number[], chars: readonly string[]): number {
     let n = 0;
     for (let i = 0; i < seg.length; i++) {
       const c = this.cells[seg[i]];
-      if (c !== EMPTY && c !== text[i]) n++;
+      if (c !== EMPTY && c !== chars[i]) n++;
     }
     return n;
   }
 
-  private write(id: string, seg: number[], text: string): BoardChanges {
+  private write(id: string, seg: number[], chars: readonly string[]): BoardChanges {
     const changes = emptyChanges();
     for (let i = 0; i < seg.length; i++) {
       const idx = seg[i];
-      if (this.cells[idx] !== text[i]) {
+      if (this.cells[idx] !== chars[i]) {
         if (this.cells[idx] !== EMPTY) changes.overwritten.push(idx);
         else changes.written.push(idx);
-        this.cells[idx] = text[i];
+        this.cells[idx] = chars[i];
       }
       this.owner[idx] = id;
     }
@@ -465,12 +482,12 @@ export class Board {
    */
   private placeOnePath(target: PlaceTarget): PlaceOneResult {
     // 第1段階：既存の文字を壊さずに置ける経路
-    const p1 = this.findPath(target.text, target.id);
-    if (p1) return { stage: 1, changes: this.write(target.id, p1, target.text) };
+    const p1 = this.findPath(target.chars, target.id);
+    if (p1) return { stage: 1, changes: this.write(target.id, p1, target.chars) };
 
     // 第2段階：上書きが避けられない場合
-    const p2 = this.findPathOverwrite(target.text, target.id);
-    if (p2) return { stage: 2, changes: this.write(target.id, p2, target.text) };
+    const p2 = this.findPathOverwrite(target.chars, target.id);
+    if (p2) return { stage: 2, changes: this.write(target.id, p2, target.chars) };
 
     return { stage: 0, changes: emptyChanges() };
   }
@@ -483,12 +500,12 @@ export class Board {
    * 実装し直すことはしない（計画書3.1）。
    */
   private placeOneLine(target: PlaceTarget): PlaceOneResult {
-    const segs = shuffled(this.segments(target.text.length), this.rng);
+    const segs = shuffled(this.segments(target.chars.length), this.rng);
     if (segs.length === 0) return { stage: 0, changes: emptyChanges() };
 
     for (const seg of segs) {
-      if (this.compatible(seg, target.text, target.id)) {
-        return { stage: 1, changes: this.write(target.id, seg, target.text) };
+      if (this.compatible(seg, target.chars, target.id)) {
+        return { stage: 1, changes: this.write(target.id, seg, target.chars) };
       }
     }
 
@@ -496,14 +513,14 @@ export class Board {
     let bestCost = Infinity;
     for (const seg of segs) {
       if (this.overlapsOther(seg, target.id)) continue;
-      const cost = this.overwriteCost(seg, target.text);
+      const cost = this.overwriteCost(seg, target.chars);
       if (cost < bestCost) {
         bestCost = cost;
         best = seg;
         if (cost === 0) break;
       }
     }
-    if (best) return { stage: 2, changes: this.write(target.id, best, target.text) };
+    if (best) return { stage: 2, changes: this.write(target.id, best, target.chars) };
 
     return { stage: 0, changes: emptyChanges() };
   }
@@ -548,7 +565,7 @@ export class Board {
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i];
       // 既に成立済みなら何もしない（探索中の語の文字を動かさないため）
-      if (this.isPlaced(t.id, t.text)) continue;
+      if (this.isPlaced(t.id, t.chars)) continue;
       const r = this.placeOne(t, mode);
       changes.written.push(...r.changes.written);
       changes.overwritten.push(...r.changes.overwritten);

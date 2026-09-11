@@ -260,11 +260,13 @@ function placeTargetsOf(state: GameState, words: readonly TargetWord[]): PlaceTa
   const lineMode = state.settings.selectionMode === "line";
   for (const word of words) {
     if (out.length >= PLACE_MAX) break;
-    if (word.match.length < 2) continue;
+    // 長さはセル単位（matchChars）で数える。String.lengthで数えると、基本多言語面外の
+    // 文字を含む語で必要セル数を取り違える（board.toChars）。
+    if (word.matchChars.length < 2) continue;
     // 直線モードでは一列に収まらない語を配置保証の対象外とする
     // （計画書3.1。分割機構は経路方式の採用に伴い全廃している）。
-    if (lineMode && word.match.length > GRID_N) continue;
-    out.push({ id: word.id, text: word.match });
+    if (lineMode && word.matchChars.length > GRID_N) continue;
+    out.push({ id: word.id, chars: word.matchChars });
   }
   return out;
 }
@@ -279,7 +281,7 @@ function placeTargetsOf(state: GameState, words: readonly TargetWord[]): PlaceTa
 function singleCharsOf(words: readonly TargetWord[]): string[] {
   const out: string[] = [];
   for (const word of words) {
-    if (word.match.length === 1) out.push(word.match);
+    if (word.matchChars.length === 1) out.push(word.matchChars[0]);
   }
   return out;
 }
@@ -394,10 +396,14 @@ function settle(state: GameState, extraClearIds: readonly string[]): BoardChange
  * 初版はこれを有効語プールの更新ごと止めることで実現していたが、ガイド表示まで
  * 巻き添えにして固まっていた。現在はプールとガイドは進め、なぞり始めた語が
  * 照合対象から外れる問題は`selectionSnapshot`との和集合で防いでいる。
+ *
+ * **据え置きのガードは`settle`の側にのみ置くこと。** ここにも同じガードを置くと
+ * `settle`が呼ばれず、有効フレーズの再計算ごと止まる（ガイドが選択中に凍り、指を
+ * 離した瞬間に数フレーズ分飛ぶ）。実装指摘3の修正が入った後も、旧実装のガードが
+ * ここに残っていたため、同指摘の症状が再現する状態が続いていた。
  */
 export function update(state: GameState, songPosition: number): BoardChanges | null {
   state.lastPosition = songPosition;
-  if (state.selecting) return null;
   return settle(state, []);
 }
 
@@ -468,6 +474,7 @@ export function endSelection(state: GameState): MatchResult {
     return empty;
   }
 
+  // 盤面のセルは1セル＝1コードポイント（board.toChars）。反転も同じ単位で行う。
   const s = state.board.textOf(state.selection);
   const reversed = [...s].reverse().join("");
   state.selecting = false;
@@ -490,7 +497,15 @@ export function endSelection(state: GameState): MatchResult {
   state.selectionSnapshot = [];
 
   // 取得確定なら取得済みに記録する。不一致でもペナルティは設けない（計画書3.5）。
-  if (hit) state.acquired.set(hit.id, state.acquired.size);
+  //
+  // `missed`からの除去を必ず伴わせること。照合対象は`selectionSnapshot`との和集合
+  // であるため、なぞっている最中に有効期間を過ぎて取り逃し確定となった語が、指を
+  // 離した時点で取得成立しうる。除去を怠ると同じIDが取得済みと取り逃しの両方に
+  // 残り、両者が排他であるという前提が状態レベルで崩れる。
+  if (hit) {
+    state.acquired.set(hit.id, state.acquired.size);
+    state.missed.delete(hit.id);
+  }
 
   // 凍結していた有効語プールを、ここでまとめて現在位置まで進める。取り逃しが
   // 確定していればその解放も、この1回で片付く（計画書3.4・5.6）。

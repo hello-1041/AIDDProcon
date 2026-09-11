@@ -312,24 +312,49 @@
    画面高をほぼ使い切る設計のため、通常のフローに置くと画面外へはみ出して操作
    できない。かといって盤面の寸法計算に加算すると、DEV環境とそれ以外で盤面の
    大きさが変わり、レイアウトの実機確認がDEVでできなくなる。開発用の道具が
-   レイアウトの検証を妨げないよう、フローから外す。 */
+   レイアウトの検証を妨げないよう、フローから外す。
+
+   ただし展開したまま固定すると、今度はステータスバー（取得率・再生位置・
+   一時停止）に重なる。1366×768の実測で重なりは33pxあり、一時停止ボタンの
+   下端が押せない。盤面が幅ではなく高さで制約される横長ビューポートでは、
+   盤面の下に残る余白（実測64px）がステータス48px＋DEVバー37pxを収めきれない
+   ためで、寸法の詰め直しでは解消しない。
+
+   そこで既定を「画面最下端の細い帯」に畳み、ポインタを載せた時だけ展開する。
+   畳んだ状態の高さは、ステータスバーの実体（一時停止ボタンの下端）に掛からない
+   範囲に収める。盤面の寸法計算には引き続き一切加算しないため、上記の
+   「DEVでもレイアウトの実機確認ができる」という条件は維持される。 */
 .ls-debug {
   display: none;
   position: fixed;
   left: 0.5rem;
   right: 0.5rem;
-  bottom: 0.25rem;
+  bottom: 0;
   z-index: 90;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.4rem;
+  /* 畳んだ状態。中身はoverflowで隠す。 */
+  height: 0.75rem;
+  padding: 0 0.5rem;
+  overflow: hidden;
+  border-radius: 0.4rem 0.4rem 0 0;
   background: rgba(255, 255, 255, 0.85);
   box-sizing: border-box;
+  transition: height 0.12s ease, padding 0.12s ease;
 }
 
 .ls-debug--visible {
   display: flex;
+}
+
+/* 展開。キーボード操作でも開けるよう:focus-withinを併記する。 */
+.ls-debug--visible:hover,
+.ls-debug--visible:focus-within {
+  height: auto;
+  bottom: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.4rem;
+  overflow: visible;
 }
 
 .ls-debug-seek {
@@ -376,6 +401,14 @@
 
 /* 曲全体の対象語をフレーズごとに並べ、取得済みは通常表示、未取得は半透明
    （3.9）。ブロック崩し・歌詞コンソールと同じ表現を踏襲する。 */
+/* 曲全体の対象語一覧。実測では38フレーズ・1307pxに対し表示領域は444pxしかなく、
+   常にスクロールが必要になる（こたえて / 1366×768）。スクロールバーは意匠上
+   隠しているため、そのままでは続きがあることを示す手掛かりが画面上に無く、
+   一覧の3分の1しか見ないまま終わるプレイヤーが生まれる。リザルトは
+   「どの語を取り逃したか」を振り返るための画面であり、これは機能の欠落に当たる。
+
+   スクロールバーを出す代わりに、下端をフェードさせて続きの存在を示す。
+   意匠（バーを見せない）を保ったまま手掛かりだけを足せる。 */
 .ls-result-words {
   flex: 1;
   width: 100%;
@@ -384,6 +417,8 @@
   text-align: left;
   line-height: 1.9;
   scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent 100%);
 }
 
 .ls-result-words::-webkit-scrollbar {
