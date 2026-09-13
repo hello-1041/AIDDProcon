@@ -89,7 +89,10 @@
   cursor: not-allowed;
 }
 
-.lc-option-btn--active {
+/* IDを前置するのは、上の#game-lyric-console button（ID＋要素）より詳細度を
+   上げるため。クラス単独では枠色・文字色が共通ルールに負け、選択中でも
+   発光しか変わらない状態になっていた。 */
+#game-lyric-console .lc-option-btn--active {
   border-color: var(--lc-fg);
   color: var(--lc-fg);
   box-shadow: var(--lc-glow);
