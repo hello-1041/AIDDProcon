@@ -31,7 +31,7 @@ export function init(onBack: () => void): void {
   // ガイドの再描画は毎フレーム行わず、内容が変わったときだけ行う。
   let guideSignature = "";
 
-  ui.updateSongButtons(textalive.SONGS.indexOf(settings.song));
+  ui.updateSongSelect(textalive.SONGS.indexOf(settings.song));
   ui.setPauseLabel(false);
   ui.setDebugModeLabel(settings.selectionMode);
 
@@ -51,7 +51,7 @@ export function init(onBack: () => void): void {
       // 更新のみでネットワーク通信を伴わないため、一度有効化すれば選び直す
       // たびに無効化し直す必要はない。
       ui.setStartEnabled(true);
-      ui.setSongButtonsEnabled(true);
+      ui.setSongSelectEnabled(true);
     },
     () => {
       // 実データ（歌詞）が届いた。対象語を抽出し、初期盤面を作ってから再生を始める。
@@ -69,11 +69,11 @@ export function init(onBack: () => void): void {
     handleSongEnd,
   );
 
-  ui.bindSongButtons((index) => {
+  ui.bindSongSelect((index) => {
     // 実データの読み込みはStart押下時まで遅延するため、ここではローカルな
     // 状態更新のみ（ネットワーク通信を伴わないため、選び直しても競合しない）。
+    // 表示はプルダウン自身が既に切り替えているため、update側を呼び直す必要はない。
     game.setSong(state, textalive.SONGS[index]);
-    ui.updateSongButtons(index);
   });
 
   ui.bindStartButton(() => {

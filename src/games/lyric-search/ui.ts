@@ -12,11 +12,9 @@ const screenEl: Record<Screen, HTMLElement> = {
   result: document.querySelector<HTMLElement>("#ls-screen-result")!,
 };
 
-// data-indexでtextalive.SONGSの添字と直結させる（曲名文字列の属性エスケープを
-// 避ける）。歌詞コンソールの選曲UIと同じ方式。
-const songOptionButtons = Array.from(
-  document.querySelectorAll<HTMLButtonElement>('[data-ls-option="song"] .ls-option-btn'),
-);
+// 選曲プルダウン。optionのvalueでtextalive.SONGSの添字と直結させる（曲名文字列の
+// 属性エスケープを避ける）。
+const songSelectEl = document.querySelector<HTMLSelectElement>("#ls-song-select")!;
 
 const btnStartEl = document.querySelector<HTMLButtonElement>("#ls-btn-start")!;
 const btnMenuEl = document.querySelector<HTMLButtonElement>("#ls-btn-menu")!;
@@ -78,20 +76,16 @@ export function setStartEnabled(enabled: boolean): void {
   btnStartEl.disabled = !enabled;
 }
 
-export function setSongButtonsEnabled(enabled: boolean): void {
-  for (const button of songOptionButtons) button.disabled = !enabled;
+export function setSongSelectEnabled(enabled: boolean): void {
+  songSelectEl.disabled = !enabled;
 }
 
-export function updateSongButtons(selectedIndex: number): void {
-  songOptionButtons.forEach((button, index) => {
-    button.classList.toggle("ls-option-btn--selected", index === selectedIndex);
-  });
+export function updateSongSelect(selectedIndex: number): void {
+  songSelectEl.value = String(selectedIndex);
 }
 
-export function bindSongButtons(onSelect: (index: number) => void): void {
-  songOptionButtons.forEach((button) => {
-    button.addEventListener("click", () => onSelect(Number(button.dataset.index)));
-  });
+export function bindSongSelect(onSelect: (index: number) => void): void {
+  songSelectEl.addEventListener("change", () => onSelect(Number(songSelectEl.value)));
 }
 
 export function bindStartButton(onStart: () => void): void {

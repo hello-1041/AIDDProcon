@@ -64,25 +64,43 @@
   color: #2a5678;
 }
 
-.ls-option-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.5rem;
-  max-width: 32rem;
+/* 選曲プルダウン（実装指摘10）。閉じた状態の見た目だけを下のボタン類（白いマス・
+   角丸・境界色・ホバーの塗り）に揃え、開いた一覧はブラウザ・OS標準のまま使う。
+   標準の矢印は appearance: none で消えるため、背景画像で描き直す。data URI の中には
+   CSS変数が届かないので、矢印の色は --ls-fg の値（#1c3a52）を直接書く。 */
+.ls-song-select {
+  width: min(100%, 20rem);
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.55rem 2.5rem 0.55rem 1rem;
+  color: var(--ls-fg);
+  background-color: var(--ls-cell-bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%231c3a52' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  background-size: 0.75rem;
+  border: none;
+  border-radius: 0.35rem;
+  box-shadow: inset 0 0 0 2px var(--ls-cell-line);
+  appearance: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-#game-lyric-search .ls-option-btn {
-  font-size: 0.9rem;
-  padding: 0.45rem 1rem;
-}
-
-/* 選択中の曲は取得済みチップ（.ls-chip--got）と同じ塗りにし、ホバーの淡い塗り
-   より一段強く見せる。ホバー中も選択中の見た目を保つため、ホバー側も併記する。 */
-#game-lyric-search .ls-option-btn--selected,
-#game-lyric-search .ls-option-btn--selected:hover:not(:disabled) {
-  background: var(--ls-accent);
+.ls-song-select:hover:not(:disabled) {
+  background-color: var(--ls-accent-pale);
   box-shadow: inset 0 0 0 2px var(--ls-accent-deep);
+}
+
+.ls-song-select:focus-visible {
+  outline: 2px solid var(--ls-accent-deep);
+  outline-offset: 2px;
+}
+
+/* アプリの起動完了（onAppReady）までは選べない。 */
+.ls-song-select:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .ls-btn-secondary {

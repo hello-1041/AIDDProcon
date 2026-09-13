@@ -208,17 +208,19 @@
           <p class="ls-title-desc"></p>
 
           <div class="ls-setting-group">
-            <span class="ls-setting-label">Song</span>
-            <!-- data-indexでtextalive.SONGSの添字と直結させる（曲名文字列の属性
-                 エスケープを避ける）。歌詞コンソールの選曲UIと同じ方式。 -->
-            <div class="ls-option-buttons" data-ls-option="song">
-              <button class="ls-option-btn" data-index="0" disabled>こたえて</button>
-              <button class="ls-option-btn" data-index="1" disabled>アフター・ザ・カーテン</button>
-              <button class="ls-option-btn" data-index="2" disabled>シャッターチャンス</button>
-              <button class="ls-option-btn" data-index="3" disabled>世界最後の音楽隊</button>
-              <button class="ls-option-btn" data-index="4" disabled>トリツクロジー</button>
-              <button class="ls-option-btn" data-index="5" disabled>TAKEOVER</button>
-            </div>
+            <label for="ls-song-select" class="ls-setting-label">Song</label>
+            <!-- 選曲プルダウン（実装指摘10）。ネイティブの<select>とし、開いた一覧は
+                 ブラウザ・OS標準のものを使う（スマートフォンでは端末のピッカーになる）。
+                 valueでtextalive.SONGSの添字と直結させる（曲名文字列の属性エスケープを
+                 避ける）。曲名・アーティスト名はSONGSと同じ順・同じ表記で並べること。 -->
+            <select id="ls-song-select" class="ls-song-select" disabled>
+              <option value="0">こたえて / imie</option>
+              <option value="1">アフター・ザ・カーテン / Rulmry</option>
+              <option value="2">シャッターチャンス / 夜未アガリ</option>
+              <option value="3">世界最後の音楽隊 / 夏山よつぎ×ど～ぱみん</option>
+              <option value="4">トリツクロジー / 鶴三</option>
+              <option value="5">TAKEOVER / Twinfield</option>
+            </select>
           </div>
 
           <button id="ls-btn-start" disabled>START</button>
