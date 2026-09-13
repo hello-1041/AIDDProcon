@@ -72,18 +72,73 @@
   max-width: 32rem;
 }
 
-.ls-option-btn {
+#game-lyric-search .ls-option-btn {
   font-size: 0.9rem;
   padding: 0.45rem 1rem;
+}
+
+/* 選択中の曲は取得済みチップ（.ls-chip--got）と同じ塗りにし、ホバーの淡い塗り
+   より一段強く見せる。ホバー中も選択中の見た目を保つため、ホバー側も併記する。 */
+#game-lyric-search .ls-option-btn--selected,
+#game-lyric-search .ls-option-btn--selected:hover:not(:disabled) {
+  background: var(--ls-accent);
+  box-shadow: inset 0 0 0 2px var(--ls-accent-deep);
+}
+
+.ls-btn-secondary {
+  margin-top: 1rem;
+}
+
+/* ------------------------------------------------------------------ ボタン */
+
+/* button自体の意匠を、共通の黄色ピル型から盤面セルと同じ「白いマス」に上書きする
+   （歌詞コンソールが#game-lyric-console buttonで端末風に上書きしているのと同じ
+   考え方）。角丸・境界色はセル（.ls-cell）に、ホバーの塗りは選択中セル
+   （.ls-cell--selected）に揃える。セルは動かないため、共通ルールの持ち上げは
+   打ち消す。 */
+#game-lyric-search button {
+  font-size: 0.95rem;
+  padding: 0.5rem 1.4rem;
+  border-radius: 0.35rem;
   background: var(--ls-cell-bg);
   color: var(--ls-fg);
   box-shadow: inset 0 0 0 2px var(--ls-cell-line);
+  letter-spacing: 0.05em;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.ls-option-btn--selected {
-  background: var(--ls-accent);
-  color: var(--ls-fg);
+#game-lyric-search button:hover:not(:disabled) {
+  transform: none;
+  background: var(--ls-accent-pale);
   box-shadow: inset 0 0 0 2px var(--ls-accent-deep);
+}
+
+/* 主操作（START・RETRY）は盤面外枠と同じ太い紺の枠で副操作と区別する。
+   ID2つで指定し、上のホバー時の枠より優先させる（ホバー中も主操作と分かるように）。 */
+#game-lyric-search #ls-btn-start,
+#game-lyric-search #ls-btn-retry {
+  box-shadow: inset 0 0 0 3px var(--ls-frame);
+}
+
+/* ------------------------------------------------------- メニュー画面の項目 */
+
+/* メニュー自体は汎用の明るい画面のため、このボタンだけを盤面のマス目に見立てて
+   中身を表現する。#screen-menuは#game-lyric-searchの外にあり--ls-*の変数が
+   届かないので、値を直接書く（格子線＝--ls-cell-line、ホバー＝--ls-accent-deep／
+   --ls-accent-pale。上の配色を変える場合はここも揃えること）。 */
+.game-entry[data-game="lyric-search"] {
+  border-radius: 0.35rem;
+  background-color: #ffffff;
+  background-image: linear-gradient(to right, rgba(185, 215, 234, 0.6) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(185, 215, 234, 0.6) 1px, transparent 1px);
+  background-size: 1.25rem 1.25rem;
+  background-position: center;
+}
+
+.game-entry[data-game="lyric-search"]:hover:not(:disabled) {
+  transform: none;
+  border-color: #1f9089;
+  background-color: #def4f2;
 }
 
 /* --------------------------------------------------------------- プレイ画面 */
@@ -297,12 +352,9 @@
   white-space: nowrap;
 }
 
-.ls-btn-pause {
+#game-lyric-search .ls-btn-pause {
   font-size: 0.85rem;
   padding: 0.4rem 1rem;
-  background: var(--ls-cell-bg);
-  color: var(--ls-fg);
-  box-shadow: inset 0 0 0 2px var(--ls-cell-line);
 }
 
 /* 開発用UI。既定は非表示にしておき、index.tsがDEV環境でのみ表示・配線する
@@ -361,12 +413,9 @@
   flex: 1;
 }
 
-.ls-debug-mode {
+#game-lyric-search .ls-debug-mode {
   font-size: 0.75rem;
   padding: 0.3rem 0.75rem;
-  background: var(--ls-cell-bg);
-  color: var(--ls-fg);
-  box-shadow: inset 0 0 0 2px var(--ls-cell-line);
 }
 
 /* ------------------------------------------------------------- リザルト画面 */

@@ -108,6 +108,71 @@
   border-color: #3a4a3a;
 }
 
+/* メニュー画面の項目。メニュー自体は汎用の明るい画面のため、このボタンだけを
+   疑似ターミナルとして見せて中身を表現する。#screen-menuは#game-lyric-consoleの
+   外にあり--lc-fg等のテーマ変数が届かないので、既定のGREENの値を直接書く。 */
+.game-entry[data-game="lyric-console"] {
+  border-radius: 0.15rem;
+  border-color: #3a4a3a;
+  background: #0a0e0a;
+  color: #cfe8cf;
+  font-family: "DotGothic16", "Courier New", monospace;
+}
+
+/* 走査線（.lc-terminal::beforeと同じ手法）。 */
+.game-entry[data-game="lyric-console"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.12) 0px,
+    rgba(0, 0, 0, 0.12) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+.game-entry[data-game="lyric-console"] .game-entry-title::before {
+  content: "> ";
+}
+
+/* プレイ画面の.lc-cursorと同じブロックカーソル。あちらは毎フレームDOMを作り直す
+   ためJS側で点滅させているが、こちらは静的な要素なのでCSS animationで足りる。 */
+.game-entry[data-game="lyric-console"] .game-entry-title::after {
+  content: "";
+  display: inline-block;
+  width: 0.6em;
+  height: 1em;
+  margin-left: 0.1em;
+  background: currentColor;
+  vertical-align: text-bottom;
+  animation: lc-entry-cursor-blink 1s steps(1) infinite;
+}
+
+@keyframes lc-entry-cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-entry[data-game="lyric-console"] .game-entry-title::after {
+    animation: none;
+  }
+}
+
+.game-entry[data-game="lyric-console"]:hover:not(:disabled) {
+  border-color: #39ff14;
+  color: #39ff14;
+  text-shadow: 0 0 2px rgba(57, 255, 20, 0.9), 0 0 6px rgba(57, 255, 20, 0.6),
+    0 0 14px rgba(57, 255, 20, 0.35);
+  box-shadow: 0 0 2px rgba(57, 255, 20, 0.9), 0 0 6px rgba(57, 255, 20, 0.6),
+    0 0 14px rgba(57, 255, 20, 0.35);
+  transform: none;
+}
+
 /* プレイ画面・リザルト画面 共通の疑似ターミナル */
 #lc-screen-play,
 #lc-screen-result {
