@@ -12,6 +12,7 @@
 | 水切リズム (MizukiRhythm) | 楽曲のビートに合わせてクリックし、石を湖面に跳ねさせて飛距離を競うリズムゲーム |
 | ブロック崩し | 歌詞ブロックをボールで崩し、歌詞をすべて集めてクリアを目指すブロック崩し |
 | Lyric-Console | 歌詞をターミナル風にタイプライター表示する、鑑賞体験寄りのコンソール演出 |
+| Lyric-Search | 歌われている歌詞の語を、5×5の文字盤からなぞって探し出す単語探しゲーム |
 
 ## 技術スタック
 
@@ -53,12 +54,13 @@ npm run preview  # ビルド結果のプレビュー
 │   └── games/
 │       ├── mizuki-rhythm/   # 水切リズム
 │       ├── block-kuzushi/   # ブロック崩し
-│       └── lyric-console/   # Lyric-Console
+│       ├── lyric-console/   # Lyric-Console
+│       └── lyric-search/    # Lyric-Search
 ├── public/               # 静的ファイル（favicon等）
 └── index.html            # 各ゲームの画面（DOM）をすべて内包するシングルページ
 ```
 
-各ゲームは `game.ts`（ロジック）・`render.ts` または `ui.ts`（描画・DOM操作）・`textalive.ts`（TextAlive連携）・`index.ts`（初期化エントリ）という構成で揃えている。
+各ゲームは `game.ts`（ロジック）・`render.ts` または `ui.ts`（描画・DOM操作）・`textalive.ts`（TextAlive連携）・`index.ts`（初期化エントリ）という構成で揃えている。Lyric-Search のみ、盤面の文字配置（対象語が必ず盤面上に存在するよう保証する処理）を `board.ts` に分けている。
 
 ## ドキュメント
 
