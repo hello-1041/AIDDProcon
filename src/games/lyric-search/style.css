@@ -1,0 +1,501 @@
+/* Lyric-Search（単語探し）専用スタイル。製造計画書4.3〜4.6の確定仕様に従う。
+   明るい水色系（水切リズム・ブロック崩しと同系統）。歌詞コンソールの暗い
+   ターミナル意匠は採らない：5×5に漢字・かな・ラテン文字が密集する盤面を
+   実効探索窓1秒強（12.5）で読ませる必要があり、ネオン発光による輪郭の
+   滲みは可読性を損なうため。 */
+
+#game-lyric-search {
+  /* 4.3 配色 */
+  --ls-bg: #eaf6ff; /* 画面背景。src/style.cssの共通背景を踏襲 */
+  --ls-fg: #1c3a52; /* 文字。同上 */
+  --ls-cell-bg: #ffffff; /* セル地 */
+  --ls-cell-line: #b9d7ea; /* セル境界 1px */
+  --ls-frame: #1c3a52; /* 盤面外枠 3px */
+  --ls-accent: #39c5bb; /* 主アクセント（塗り）。初音ミクのイメージカラー */
+  --ls-accent-deep: #1f9089; /* 主アクセント（線）。白地コントラスト3.90 */
+  --ls-accent-pale: #def4f2; /* 主アクセント（淡）。選択中セルの塗り */
+  --ls-muted: #9bb3c4; /* 取り逃し・グレーアウト */
+
+  /* 4.5 寸法。ガイドとステータスは固定高（可変にすると盤面が上下に跳ね、
+     3.6が禁じる「盤面が落ち着かない状態」と同じ害になる）。
+     ガイドは2フレーズ分を並べるため2段ぶんを確保する（実装指摘6）。語を文節単位へ
+     連結した結果チップが長くなり、片方の段が2行に折り返す場面があるため、
+     5.5rem では足りず 6.5rem とする。
+     375×667での縦の検算：ガイド104px＋盤面343px＋ステータス48px＋余白＝およそ511px。
+     盤面は幅で決まる（343px）ため、ガイドを伸ばしてもマス目は縮まない。
+     1マスは (343 - 枠6 - 余白8 - 隙間16) / 5 ＝ 約62.6px でタップに十分。 */
+  --ls-guide-h: 6.5rem;
+  --ls-status-h: 3rem;
+
+  /* 盤面の一辺のマス数。JS側（board.ts の GRID_N）から設定する。
+     CSSにもコードにも 5 を直書きしない（3.2）。 */
+  --ls-grid-n: 5;
+}
+
+/* ------------------------------------------------------------- タイトル画面 */
+
+#ls-title-logo {
+  font-size: 3rem;
+  margin: 0 0 1rem;
+  letter-spacing: 0.05em;
+  color: var(--ls-accent-deep);
+  text-shadow: 2px 2px 0 #ffffff, 4px 4px 0 rgba(28, 58, 82, 0.15);
+}
+
+/* トークン未設定時のエラー表示欄も兼ねる（既存3作と同じ役割分担）。 */
+.ls-title-desc {
+  font-size: 1.05rem;
+  line-height: 1.8;
+  margin: 0 0 1.5rem;
+  color: #2a5678;
+}
+
+.ls-setting-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.ls-setting-label {
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+  color: #2a5678;
+}
+
+.ls-option-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  max-width: 32rem;
+}
+
+#game-lyric-search .ls-option-btn {
+  font-size: 0.9rem;
+  padding: 0.45rem 1rem;
+}
+
+/* 選択中の曲は取得済みチップ（.ls-chip--got）と同じ塗りにし、ホバーの淡い塗り
+   より一段強く見せる。ホバー中も選択中の見た目を保つため、ホバー側も併記する。 */
+#game-lyric-search .ls-option-btn--selected,
+#game-lyric-search .ls-option-btn--selected:hover:not(:disabled) {
+  background: var(--ls-accent);
+  box-shadow: inset 0 0 0 2px var(--ls-accent-deep);
+}
+
+.ls-btn-secondary {
+  margin-top: 1rem;
+}
+
+/* ------------------------------------------------------------------ ボタン */
+
+/* button自体の意匠を、共通の黄色ピル型から盤面セルと同じ「白いマス」に上書きする
+   （歌詞コンソールが#game-lyric-console buttonで端末風に上書きしているのと同じ
+   考え方）。角丸・境界色はセル（.ls-cell）に、ホバーの塗りは選択中セル
+   （.ls-cell--selected）に揃える。セルは動かないため、共通ルールの持ち上げは
+   打ち消す。 */
+#game-lyric-search button {
+  font-size: 0.95rem;
+  padding: 0.5rem 1.4rem;
+  border-radius: 0.35rem;
+  background: var(--ls-cell-bg);
+  color: var(--ls-fg);
+  box-shadow: inset 0 0 0 2px var(--ls-cell-line);
+  letter-spacing: 0.05em;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#game-lyric-search button:hover:not(:disabled) {
+  transform: none;
+  background: var(--ls-accent-pale);
+  box-shadow: inset 0 0 0 2px var(--ls-accent-deep);
+}
+
+/* ------------------------------------------------------- メニュー画面の項目 */
+
+/* メニュー自体は汎用の明るい画面のため、このボタンだけを盤面のマス目に見立てて
+   中身を表現する。#screen-menuは#game-lyric-searchの外にあり--ls-*の変数が
+   届かないので、値を直接書く（格子線＝--ls-cell-line、ホバー＝--ls-accent-deep／
+   --ls-accent-pale。上の配色を変える場合はここも揃えること）。 */
+.game-entry[data-game="lyric-search"] {
+  border-radius: 0.35rem;
+  background-color: #ffffff;
+  background-image: linear-gradient(to right, rgba(185, 215, 234, 0.6) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(185, 215, 234, 0.6) 1px, transparent 1px);
+  background-size: 1.25rem 1.25rem;
+  background-position: center;
+}
+
+.game-entry[data-game="lyric-search"]:hover:not(:disabled) {
+  transform: none;
+  border-color: #1f9089;
+  background-color: #def4f2;
+}
+
+/* --------------------------------------------------------------- プレイ画面 */
+
+/* .screen既定の中央寄せ・padding 2remを上書きし、ガイド／盤面／ステータスの
+   3段を上から積む（4.1）。 */
+#ls-screen-play {
+  justify-content: flex-start;
+  padding: 0.5rem;
+  gap: 0.5rem;
+}
+
+/* 4.1-1 歌詞ガイドエリア。表示中フレーズの語チップを並べる。
+   固定高：フレーズごとに語数（実測5〜8語）が変わり折り返し行数が動くため、
+   可変にすると盤面が上下に跳ねる（4.5）。 */
+.ls-guide {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 100%;
+  min-height: var(--ls-guide-h);
+  height: var(--ls-guide-h);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* 1行＝1フレーズ。有効なフレーズを歌い出し順に積む（実装指摘6）。 */
+.ls-guide-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  overflow: hidden;
+}
+
+/* まだ歌われていない次フレーズ。色ではなく明度と大きさで一段控えめにし、
+   今どちらを歌っているかを示す（4.3 制約2により、状態を色で表さない）。 */
+.ls-guide-row--next {
+  opacity: 0.72;
+  font-size: 0.88em;
+}
+
+.ls-chip {
+  font-size: 1.05rem;
+  line-height: 1.3;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.3rem;
+  background: var(--ls-cell-bg);
+  color: var(--ls-fg);
+  box-shadow: inset 0 0 0 1px var(--ls-cell-line);
+  transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+}
+
+/* 3状態は地・文字・枠の3属性を同時に動かす。色覚特性によらず、明度差だけでも
+   3段が判別できるようにするため（4.4）。 */
+.ls-chip--got {
+  background: var(--ls-accent);
+  color: var(--ls-fg);
+  box-shadow: none;
+}
+
+.ls-chip--missed {
+  background: #eef4f8;
+  color: var(--ls-muted);
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+/* 4.5 盤面。ピクセル固定で直書きしない（375px幅で1マス約70pxだが、
+   70*5+4*4=366pxで左右余白が4.5pxしか残らず、360px端末で即破綻する）。
+   ブロック崩しの.bk-canvas-wrapと同じくmin()によるフルード指定とする。 */
+.ls-board-wrap {
+  position: relative;
+  width: min(
+    100% - 1rem,
+    calc(100dvh - var(--ls-guide-h) - var(--ls-status-h) - 2rem)
+  );
+  aspect-ratio: 1 / 1;
+  /* 盤面に外枠を付けるのは、ブロック崩しで「ゲーム画面の枠が無く範囲が
+     わかりづらい」という指摘を受けた経緯を踏まえたもの（4.4）。 */
+  border: 3px solid var(--ls-frame);
+  border-radius: 0.5rem;
+  box-sizing: border-box;
+  background: var(--ls-bg);
+  /* 指でなぞる操作の生命線。指定しないとブラウザがスクロール／引っ張って更新と
+     解釈し、pointermoveが途中で打ち切られて選択が成立しない（3.5）。 */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ls-board {
+  display: grid;
+  grid-template-columns: repeat(var(--ls-grid-n), 1fr);
+  grid-template-rows: repeat(var(--ls-grid-n), 1fr);
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+/* セル側で字幅の不揃いを吸収する（4.2）。英語歌詞を含む曲では盤面に
+   かな・漢字・ラテン文字が同居し、ラテン文字は全角より細い。セルを固定寸法に
+   した上で文字を中央寄せすれば、FLAWLESSのLが細くても格子は崩れない。 */
+.ls-cell {
+  display: grid;
+  place-items: center;
+  background: var(--ls-cell-bg);
+  border: 1px solid var(--ls-cell-line);
+  border-radius: 0.35rem;
+  color: var(--ls-fg);
+  font-size: 1.9rem;
+  line-height: 1;
+  box-sizing: border-box;
+  /* セル単位でもtouch-actionを殺しておく（盤面側だけだと、セルが
+     イベントターゲットになった際にブラウザ既定の挙動が復活しうる）。 */
+  touch-action: none;
+}
+
+.ls-cell--selected {
+  background: var(--ls-accent-pale);
+}
+
+/* 4.6 補充（フェードイン）。取得・取り逃しで空いたセルに新しい文字が入る。 */
+@keyframes ls-refill {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.ls-cell--refill {
+  animation: ls-refill 180ms ease-out;
+}
+
+/* 4.6 上書きセル（5.2 第2段階）。配置保証のために無関係なセルを潰した場合、
+   変化したことを明示する。補充と同じ演出に加えてフラッシュ。 */
+@keyframes ls-overwrite-flash {
+  from {
+    background: #fff3c4;
+  }
+  to {
+    background: var(--ls-cell-bg);
+  }
+}
+
+.ls-cell--overwritten {
+  animation: ls-refill 180ms ease-out, ls-overwrite-flash 120ms ease-out;
+}
+
+/* 4.6 不一致。色を使わず動きで表現する。彩色する場合も無彩色に留め、
+   キャラクターの色は使わない（4.3 制約2）。 */
+@keyframes ls-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+.ls-cell--miss {
+  animation: ls-shake 120ms ease-in-out;
+}
+
+/* 4.4 選択中の経路線。線だけでは指に隠れて見えず、塗りだけでは通った順序が
+   分からない。経路方式は同じセル集合でも順序によって別の語になるため（3.5）、
+   順序の可視化は必須。 */
+.ls-path {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.ls-path polyline {
+  fill: none;
+  stroke: var(--ls-accent-deep);
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+
+/* 4.1-3 ステータスエリア。取得率・再生位置・一時停止（4.7）。
+   「メニューに戻る」は置かない（既存3作と揃え、タイトル画面のみに配置）。 */
+.ls-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  width: 100%;
+  height: var(--ls-status-h);
+  font-size: 0.95rem;
+  color: var(--ls-fg);
+}
+
+.ls-status-item {
+  white-space: nowrap;
+}
+
+#game-lyric-search .ls-btn-pause {
+  font-size: 0.85rem;
+  padding: 0.4rem 1rem;
+}
+
+/* 開発用UI。既定は非表示にしておき、index.tsがDEV環境でのみ表示・配線する
+   （歌詞コンソールの#lc-debug-seekと同じ方針）。
+
+   画面下部に固定で重ねる（実装指摘2）。プレイ画面はガイド＋盤面＋ステータスで
+   画面高をほぼ使い切る設計のため、通常のフローに置くと画面外へはみ出して操作
+   できない。かといって盤面の寸法計算に加算すると、DEV環境とそれ以外で盤面の
+   大きさが変わり、レイアウトの実機確認がDEVでできなくなる。開発用の道具が
+   レイアウトの検証を妨げないよう、フローから外す。
+
+   ただし展開したまま固定すると、今度はステータスバー（取得率・再生位置・
+   一時停止）に重なる。1366×768の実測で重なりは33pxあり、一時停止ボタンの
+   下端が押せない。盤面が幅ではなく高さで制約される横長ビューポートでは、
+   盤面の下に残る余白（実測64px）がステータス48px＋DEVバー37pxを収めきれない
+   ためで、寸法の詰め直しでは解消しない。
+
+   そこで既定を「画面最下端の細い帯」に畳み、ポインタを載せた時だけ展開する。
+   畳んだ状態の高さは、ステータスバーの実体（一時停止ボタンの下端）に掛からない
+   範囲に収める。盤面の寸法計算には引き続き一切加算しないため、上記の
+   「DEVでもレイアウトの実機確認ができる」という条件は維持される。 */
+.ls-debug {
+  display: none;
+  position: fixed;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0;
+  z-index: 90;
+  align-items: center;
+  gap: 0.5rem;
+  /* 畳んだ状態。中身はoverflowで隠す。 */
+  height: 0.75rem;
+  padding: 0 0.5rem;
+  overflow: hidden;
+  border-radius: 0.4rem 0.4rem 0 0;
+  background: rgba(255, 255, 255, 0.85);
+  box-sizing: border-box;
+  transition: height 0.12s ease, padding 0.12s ease;
+}
+
+.ls-debug--visible {
+  display: flex;
+}
+
+/* 展開。キーボード操作でも開けるよう:focus-withinを併記する。 */
+.ls-debug--visible:hover,
+.ls-debug--visible:focus-within {
+  height: auto;
+  bottom: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.4rem;
+  overflow: visible;
+}
+
+.ls-debug-seek {
+  flex: 1;
+}
+
+#game-lyric-search .ls-debug-mode {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.75rem;
+}
+
+/* ------------------------------------------------------------- リザルト画面 */
+
+#ls-screen-result {
+  justify-content: flex-start;
+  padding: 1.5rem 1rem;
+  gap: 0.75rem;
+}
+
+/* #ls-media（画面右下固定の楽曲情報バナー）とボタンが重なるため、ボタン群を
+   バナーの手前で止める（実装指摘5）。バナー側を動かすとプレイ画面の
+   ステータスエリアと干渉するため、リザルト側で避ける。
+   値は #ls-media の bottom: 2.5rem ＋ バナー自体の高さ約2rem に余裕を足したもの。 */
+#ls-screen-result .result-buttons {
+  margin-bottom: 5rem;
+}
+
+.ls-result-title {
+  margin: 0;
+  font-size: 1.2rem;
+  letter-spacing: 0.2em;
+  color: #2a5678;
+}
+
+.ls-result-score {
+  font-size: 3rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--ls-accent-deep);
+}
+
+/* 曲全体の対象語をフレーズごとに並べ、取得済みは通常表示、未取得は半透明
+   （3.9）。ブロック崩し・歌詞コンソールと同じ表現を踏襲する。 */
+/* 曲全体の対象語一覧。実測では38フレーズ・1307pxに対し表示領域は444pxしかなく、
+   常にスクロールが必要になる（こたえて / 1366×768）。スクロールバーは意匠上
+   隠しているため、そのままでは続きがあることを示す手掛かりが画面上に無く、
+   一覧の3分の1しか見ないまま終わるプレイヤーが生まれる。リザルトは
+   「どの語を取り逃したか」を振り返るための画面であり、これは機能の欠落に当たる。
+
+   スクロールバーを出す代わりに、下端をフェードさせて続きの存在を示す。
+   意匠（バーを見せない）を保ったまま手掛かりだけを足せる。 */
+.ls-result-words {
+  flex: 1;
+  width: 100%;
+  max-width: 32rem;
+  overflow-y: auto;
+  text-align: left;
+  line-height: 1.9;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent 100%);
+}
+
+.ls-result-words::-webkit-scrollbar {
+  display: none;
+}
+
+.ls-result-phrase {
+  margin-bottom: 0.25rem;
+}
+
+.ls-result-word {
+  opacity: 0.3;
+}
+
+.ls-result-word--collected {
+  opacity: 1;
+  color: var(--ls-accent-deep);
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------- メディア要素 */
+
+#ls-media {
+  position: fixed;
+  right: 0;
+  bottom: 2.5rem;
+  z-index: 100;
+  font-size: 0.75rem;
+  background: transparent;
+  /* TextAlive側が確保する動画プレースホルダ領域（常に空）が、見えないまま
+     大きな透明領域としてタップを奪う実機不具合への対策（歌詞コンソールと
+     同じ対応）。クレジット表示だけクリックを受け付け、それ以外は素通しにする。 */
+  pointer-events: none;
+}
+
+#ls-media .textalive-banner {
+  pointer-events: auto;
+}

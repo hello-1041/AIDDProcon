@@ -23,6 +23,9 @@
       <!-- 歌詞コンソール（lyric-console）専用の第3のPlayerインスタンス用メディア要素。
            他2作とグローバルIDを分離し、独立して音声再生・バナー表示を行う。 -->
       <div id="lc-media"></div>
+      <!-- 単語探し（lyric-search）専用の第4のPlayerインスタンス用メディア要素。
+           他3作とグローバルIDを分離し、独立して音声再生・バナー表示を行う。 -->
+      <div id="ls-media"></div>
 
       <section id="screen-menu" class="screen screen--active">
         <h1 id="menu-logo">GAME MENU</h1>
@@ -41,6 +44,11 @@
           <li>
             <button class="game-entry" data-game="lyric-console">
               <span class="game-entry-title">Lyric-Console</span>
+            </button>
+          </li>
+          <li>
+            <button class="game-entry" data-game="lyric-search">
+              <span class="game-entry-title">Lyric-Search</span>
             </button>
           </li>
           <li>
@@ -187,6 +195,79 @@
               <button id="lc-btn-retry">[ RETRY ]</button>
               <button id="lc-btn-title">[ TITLE ]</button>
             </div>
+          </div>
+        </section>
+      </div>
+
+      <div id="game-lyric-search" class="game-section">
+        <section id="ls-screen-title" class="screen">
+          <h1 id="ls-title-logo">Lyric-Search</h1>
+          <!-- 説明文は削除済み（実装指摘1）。この要素自体はトークン未設定時の
+               エラー表示欄として ui.showTokenError から使い回すため、空のまま残す
+               （歌詞コンソールの .lc-title-desc と同じ扱い）。 -->
+          <p class="ls-title-desc"></p>
+
+          <div class="ls-setting-group">
+            <span class="ls-setting-label">Song</span>
+            <!-- data-indexでtextalive.SONGSの添字と直結させる（曲名文字列の属性
+                 エスケープを避ける）。歌詞コンソールの選曲UIと同じ方式。 -->
+            <div class="ls-option-buttons" data-ls-option="song">
+              <button class="ls-option-btn" data-index="0" disabled>こたえて</button>
+              <button class="ls-option-btn" data-index="1" disabled>アフター・ザ・カーテン</button>
+              <button class="ls-option-btn" data-index="2" disabled>シャッターチャンス</button>
+              <button class="ls-option-btn" data-index="3" disabled>世界最後の音楽隊</button>
+              <button class="ls-option-btn" data-index="4" disabled>トリツクロジー</button>
+              <button class="ls-option-btn" data-index="5" disabled>TAKEOVER</button>
+            </div>
+          </div>
+
+          <button id="ls-btn-start" disabled>START</button>
+          <button id="ls-btn-menu" class="ls-btn-secondary">EXIT</button>
+        </section>
+
+        <section id="ls-screen-play" class="screen">
+          <!-- 歌詞ガイド（製造計画書4.1）。演出ではなく必須の機能であり、
+               表示中フレーズの語チップをここに出す。高さは固定（4.5）。 -->
+          <div id="ls-guide" class="ls-guide"></div>
+
+          <!-- 盤面。グリッド（DOM）と選択経路（SVG）を重ねる（4.2）。 -->
+          <div class="ls-board-wrap">
+            <div id="ls-board" class="ls-board"></div>
+            <!-- 経路線はセル中心のピクセル座標で直接描くため、viewBoxは持たせない
+                 （viewBox座標系にするとstroke-widthが盤面サイズに応じて化ける）。 -->
+            <svg id="ls-path" class="ls-path" aria-hidden="true"></svg>
+          </div>
+
+          <div class="ls-status">
+            <span class="ls-status-item">取得率: <span id="ls-hud-score">0%</span></span>
+            <span class="ls-status-item" id="ls-hud-time">0:00 / 0:00</span>
+            <button id="ls-btn-pause" class="ls-btn-pause">⏸ 一時停止</button>
+          </div>
+
+          <!-- 開発用（DEV環境限定、index.tsが表示・配線を行う。本番ビルドでは
+               CSSの既定値display:noneのまま）。シークバーは9章の暫定パラメータ
+               調整に、選択モードトグルは11.4の実機比較に使う。 -->
+          <div id="ls-debug" class="ls-debug">
+            <input
+              type="range"
+              id="ls-debug-seek"
+              class="ls-debug-seek"
+              min="0"
+              max="0"
+              value="0"
+              step="1"
+            />
+            <button id="ls-debug-mode" class="ls-debug-mode">選択: 経路</button>
+          </div>
+        </section>
+
+        <section id="ls-screen-result" class="screen">
+          <h2 class="ls-result-title">RESULT</h2>
+          <p id="ls-result-score" class="ls-result-score">0%</p>
+          <div id="ls-result-words" class="ls-result-words"></div>
+          <div class="result-buttons">
+            <button id="ls-btn-retry">RETRY</button>
+            <button id="ls-btn-title">TITLE</button>
           </div>
         </section>
       </div>

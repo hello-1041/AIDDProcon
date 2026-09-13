@@ -115,7 +115,7 @@ export function bindMenuButton(onBack: () => void): void {
 // タイプ中の1行だけを愚直に描画する。
 //
 // スクロールバーは常にコンソール内で最下部付近にいた場合のみ追従させる
-// （フィードバック1.1）。市民が意図的に上へスクロールしている間は、
+// （フィードバック1.1）。プレイヤーが意図的に上へスクロールしている間は、
 // 新しい行が来ても追従しない。閾値はごく小さくし、少しでも上へ動かせば
 // 追従を解除する（フィードバック：以前は20pxの遊びがあり、かつ後述の毎フレーム
 // DOM再構築と相まって、上へスクロールしようとしても引き戻される不具合があった）。
@@ -132,7 +132,7 @@ interface TerminalRenderState {
 
 // 描画済み状態をコンテナ（プレイ画面／リザルト画面、それぞれの疑似ターミナル）
 // ごとに記憶する。以前はこれを持たず、毎フレーム無条件にDOMを丸ごと作り直して
-// いたため、市民が手動スクロール中でも常にDOMが再構築され続け、スクロール操作
+// いたため、プレイヤーが手動スクロール中でも常にDOMが再構築され続け、スクロール操作
 // そのものを阻害していた（特にタッチ操作でのスクロール慣性と相性が悪い）。
 const terminalRenderStates = new WeakMap<HTMLElement, TerminalRenderState>();
 
@@ -171,7 +171,7 @@ export function renderConsole(
 
   if (!isReset && !linesAdded && !currentLineChanged && !cursorChanged) {
     // 前回の描画から何も変わっていない。DOM操作もスクロール追従判定も一切行わない
-    // （ここで毎フレーム触ってしまうと、市民が手動でスクロールしている最中の
+    // （ここで毎フレーム触ってしまうと、プレイヤーが手動でスクロールしている最中の
     // scrollTopまで意図せず読み書きしてしまい、スクロール操作を阻害する）。
     return;
   }
@@ -244,10 +244,17 @@ const PROGRESS_BAR_LENGTH = 10;
 // 誤読を招くため採らない。
 const PROGRESS_LABEL = "PROG ";
 
+// 百分率の数値は3桁幅に右寄せする。桁数のまま出すと9%→10%→100%で幅が1chずつ
+// 伸び、ぎりぎり1行に収まっていた端末幅では再生の途中でVOLメーターが下段へ
+// 折り返してしまう（.lc-status-readoutのflex-wrap）。幅を固定しておけば、
+// 折り返すかどうかは画面幅だけで決まり、再生中にレイアウトが動かない。
+const PROGRESS_PERCENT_WIDTH = 3;
+
 export function updateProgressBar(percent: number): void {
   const filled = Math.round((percent / 100) * PROGRESS_BAR_LENGTH);
   const bar = "=".repeat(filled) + " ".repeat(PROGRESS_BAR_LENGTH - filled);
-  progressEl.textContent = `${PROGRESS_LABEL}[${bar}] ${Math.floor(percent)}%`;
+  const percentText = String(Math.floor(percent)).padStart(PROGRESS_PERCENT_WIDTH, " ");
+  progressEl.textContent = `${PROGRESS_LABEL}[${bar}] ${percentText}%`;
 }
 
 // nowMsには`requestAnimationFrame`のタイムスタンプ等、単調増加するms値を渡す。
