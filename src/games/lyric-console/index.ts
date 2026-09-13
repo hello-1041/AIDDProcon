@@ -119,10 +119,11 @@ export function init(onBack: () => void): void {
       game.startBoot(state);
     },
     () => {
-      // TITLE: 選択済みのColor・読み込み済みデータを引き継いだままタイトルへ
-      // 戻る（別の曲を選べばgame.setSongが読み込み済みフラグを破棄する）。
+      // TITLE: 選択済みのColor・Songだけを引き継ぎ、読み込み済みデータは破棄して
+      // タイトルへ戻る。Start押下時は常に読み込み直す（game.beginTrackLoad）ため、
+      // ここで保持していても使われない。バナーはshowScreen("title")が隠す。
       player.requestStop();
-      state = game.createInitialState(state.phrases, state.settings, true);
+      state = game.createInitialState([], state.settings);
       ui.showScreen("title");
     },
   );

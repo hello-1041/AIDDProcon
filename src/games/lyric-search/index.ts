@@ -62,6 +62,8 @@ export function init(onBack: () => void): void {
       ui.renderBoard(state.board);
       ui.applyCellChanges(changes);
       guideSignature = "";
+      // 新しい曲のクレジットに更新された後で表示する（Start押下時に隠している）。
+      ui.setMediaVisible(true);
       textalive.startPlayback(player);
     },
     handleSongEnd,
@@ -81,6 +83,9 @@ export function init(onBack: () => void): void {
     paused = false;
     ui.setPauseLabel(false);
     ui.showScreen("play");
+    // showScreen("play")は#ls-mediaを表示状態へ戻すが、この時点ではまだ前の曲の
+    // クレジットが残っている。新しい実データが届く（onSongReady）まで隠しておく。
+    ui.setMediaVisible(false);
     ui.renderGuide([]);
     ui.renderSelection([]);
     textalive.loadSong(player, settings.song);
@@ -113,10 +118,12 @@ export function init(onBack: () => void): void {
       textalive.startPlayback(player);
     },
     () => {
-      // TITLE: 再生を止めてタイトルへ戻る（別の曲を選べばgame.setSongが実データを
-      // 破棄する）。プレイ画面から直接メニューへ戻る導線は持たない（計画書4.7）。
+      // TITLE: 再生を止め、読み込み済みの実データを破棄してタイトルへ戻る。
+      // Start押下時は常に読み込み直すため、ここで保持していても使われない。
+      // バナーはshowScreen("title")が隠す。プレイ画面から直接メニューへ戻る導線は
+      // 持たない（計画書4.7）。
       player.requestStop();
-      state = game.createInitialState(settings, state.targets);
+      state = game.createInitialState(settings, null);
       paused = false;
       ui.setPauseLabel(false);
       ui.showScreen("title");
