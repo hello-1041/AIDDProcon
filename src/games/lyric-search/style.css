@@ -113,13 +113,6 @@
   box-shadow: inset 0 0 0 2px var(--ls-accent-deep);
 }
 
-/* 主操作（START・RETRY）は盤面外枠と同じ太い紺の枠で副操作と区別する。
-   ID2つで指定し、上のホバー時の枠より優先させる（ホバー中も主操作と分かるように）。 */
-#game-lyric-search #ls-btn-start,
-#game-lyric-search #ls-btn-retry {
-  box-shadow: inset 0 0 0 3px var(--ls-frame);
-}
-
 /* ------------------------------------------------------- メニュー画面の項目 */
 
 /* メニュー自体は汎用の明るい画面のため、このボタンだけを盤面のマス目に見立てて
