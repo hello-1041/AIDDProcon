@@ -214,6 +214,12 @@
   display: none;
 }
 
+/* リザルト画面ではターミナルの下に統計欄が続くため、バナー回避の余白は統計欄側で
+   取る（.lc-result-stats参照）。 */
+#lc-terminal-result {
+  margin-bottom: 0;
+}
+
 /* 走査線オーバーレイ。控えめな濃さに留める（製造計画書2.1節）。 */
 .lc-terminal::before {
   content: "";
@@ -306,6 +312,14 @@
 /* リザルト画面：統計情報はシャットダウンタイプ完了までフェード待機させる */
 .lc-result-stats {
   margin-top: 0.75rem;
+  /* バナー回避の余白は、画面最下部に来る要素に置かないと効かない。プレイ画面では
+     .lc-terminalが最下部のためそちらのmargin-bottomで避けているが、リザルト画面
+     ではその下にこの統計欄（ボタンを含む）が続く。ターミナル側に余白を残したままだと
+     余白がターミナルと統計欄の間に挟まり、ボタンが画面最下部＝バナーの位置へ
+     押し出されて重なる（スマホ幅で発生。横幅に余裕があればバナーが右端に寄るため
+     目立たない）。そのため余白をこちらへ移す
+     （値は.lc-terminalのmargin-bottomと同じ）。 */
+  margin-bottom: 7.5rem;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.4s ease;
