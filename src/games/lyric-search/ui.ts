@@ -40,6 +40,13 @@ const debugModeEl = document.querySelector<HTMLButtonElement>("#ls-debug-mode")!
 const resultScoreEl = document.querySelector<HTMLElement>("#ls-result-score")!;
 const resultWordsEl = document.querySelector<HTMLElement>("#ls-result-words")!;
 
+// #ls-media（TextAliveのクレジットバナー表示先）は#app直下にあり、.game-section
+// とは連動しない独立要素。隠さずに放置すると、メニューへ戻って別のゲームへ移った
+// 後もこのゲームの曲のバナーが残り、移動先のバナーと重なって表示される。
+// メニューへの導線はタイトル画面にしか無いため、タイトル画面の間だけ隠せば足りる
+// （歌詞コンソールの#lc-mediaと同じ扱い）。
+const lsMediaEl = document.querySelector<HTMLElement>("#ls-media")!;
+
 let cellEls: HTMLElement[] = [];
 let polylineEl: SVGPolylineElement | null = null;
 
@@ -49,6 +56,16 @@ export function showScreen(screen: Screen): void {
   for (const [key, el] of Object.entries(screenEl)) {
     el.classList.toggle("screen--active", key === screen);
   }
+  lsMediaEl.classList.toggle("ls-media--hidden", screen === "title");
+}
+
+// #ls-mediaはTextAlive SDKが自前で内容を書き換えるため、新しい曲の実データが
+// 届くまでは前の曲のクレジットが残ったまま見えてしまう。Start押下時に隠し、
+// 実データ到着後に再表示する（index.ts参照）。読み込み中にdisplay:noneで要素
+// サイズを0にするとSDK側の位置追従処理が壊れるため（歌詞コンソールで実機確認）、
+// ls-media--hiddenではなくvisibility:hiddenのls-media--reloadingを使う。
+export function setMediaVisible(visible: boolean): void {
+  lsMediaEl.classList.toggle("ls-media--reloading", !visible);
 }
 
 export function showTokenError(message: string): void {

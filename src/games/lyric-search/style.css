@@ -499,3 +499,16 @@
 #ls-media .textalive-banner {
   pointer-events: auto;
 }
+
+/* タイトル画面の間は隠す。メニュー経由で別のゲームへ移ったときに、このゲームの
+   バナーが残って移動先のバナーと重なるのを防ぐ（ui.showScreen参照）。 */
+#ls-media.ls-media--hidden {
+  display: none;
+}
+
+/* 曲の再読み込み中（Start押下〜実データ到着）に、前の曲のクレジットが見えるのを
+   防ぐ。display:noneは読み込み中のSDK側の位置追従を壊すため、レイアウトサイズを
+   保ったまま見た目だけ消す（歌詞コンソールの#lc-media.lc-media--reloadingと同じ）。 */
+#ls-media.ls-media--reloading {
+  visibility: hidden;
+}
