@@ -178,12 +178,18 @@
 }
 
 /* プレイ画面上部の固定ステータスバー。歌詞の量に関わらず、常に同じ位置に
-   留まる（フィードバック3.1）。 */
+   留まる（フィードバック3.1）。
+
+   横方向の余白（padding・gap）は、412px幅（Androidに多い端末幅）でも
+   スピナー・PROG・VOLが1行に収まるよう詰めてある。以前のpadding 0.9rem・
+   gap 1remでは1行に約422pxを要し、412〜414px幅の端末では2行に折り返していた。
+   現在は約396px。これより狭い端末では、従来通り.lc-status-readoutの内側で
+   VOLメーターが下段に折り返す。 */
 .lc-status-bar {
   display: flex;
   align-items: flex-start;
-  gap: 1rem;
-  padding: 0.4rem 0.9rem;
+  gap: 1ch;
+  padding: 0.4rem 0.6rem;
   margin-bottom: 0.75rem;
   border: 1px solid #3a4a3a;
   border-radius: 0.15rem;
@@ -203,7 +209,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem 1rem;
+  gap: 0.4rem 1ch;
   min-width: 0;
 }
 

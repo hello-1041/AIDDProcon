@@ -244,10 +244,17 @@ const PROGRESS_BAR_LENGTH = 10;
 // 誤読を招くため採らない。
 const PROGRESS_LABEL = "PROG ";
 
+// 百分率の数値は3桁幅に右寄せする。桁数のまま出すと9%→10%→100%で幅が1chずつ
+// 伸び、ぎりぎり1行に収まっていた端末幅では再生の途中でVOLメーターが下段へ
+// 折り返してしまう（.lc-status-readoutのflex-wrap）。幅を固定しておけば、
+// 折り返すかどうかは画面幅だけで決まり、再生中にレイアウトが動かない。
+const PROGRESS_PERCENT_WIDTH = 3;
+
 export function updateProgressBar(percent: number): void {
   const filled = Math.round((percent / 100) * PROGRESS_BAR_LENGTH);
   const bar = "=".repeat(filled) + " ".repeat(PROGRESS_BAR_LENGTH - filled);
-  progressEl.textContent = `${PROGRESS_LABEL}[${bar}] ${Math.floor(percent)}%`;
+  const percentText = String(Math.floor(percent)).padStart(PROGRESS_PERCENT_WIDTH, " ");
+  progressEl.textContent = `${PROGRESS_LABEL}[${bar}] ${percentText}%`;
 }
 
 // nowMsには`requestAnimationFrame`のタイムスタンプ等、単調増加するms値を渡す。
