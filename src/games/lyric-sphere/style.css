@@ -1,0 +1,392 @@
+/* Lyric-Sphere 専用スタイル。製造計画書4.3〜4.7に従う。
+
+   夜のプラネタリウム。水切リズム・ブロック崩し・Lyric-Searchの明るい水色系とは
+   別系統だが、Lyric-Consoleの暗いターミナル意匠とも意図的に差を付ける
+   （ネオン発光ではなく、星空の質感とする。4.3）。 */
+
+#game-lyric-sphere {
+  /* 4.3 配色。canvasはCSS変数を直接解決しないため、render.ts側にも同じ値を
+     定数として持たせている。こちらが正、あちらが写し。 */
+  --lsp-bg: #070d18; /* 天球の地。深い紺 */
+  --lsp-grid: rgba(120, 180, 220, 0.18); /* 副線（3°ごと） */
+  --lsp-grid-major: rgba(150, 200, 235, 0.38); /* 主線（15°ごと） */
+  --lsp-horizon: rgba(160, 205, 235, 0.55); /* 水平線 */
+  --lsp-pending: #6f8aa6; /* 発声済み・未点灯 */
+  --lsp-lit: #39c5bb; /* 点灯（主アクセント。初音ミクのイメージカラー） */
+  --lsp-star: rgba(200, 235, 240, 0.55); /* 星化 */
+  --lsp-lost: rgba(120, 140, 160, 0.22); /* 沈黙したシルエット */
+  --lsp-fg: #cfe4f2; /* HUDの文字 */
+
+  /* 前作で#39C5BBに課した「線に使わない」制約は本作では適用しない（4.3）。
+     あの制約は白地に対するコントラストが2.13しかないことを理由としていたが、
+     本作の地は#070d18であり、同じ組み合わせのコントラストは約9.1に達する。 */
+
+  --lsp-status-h: 2.6rem;
+
+  height: 100%;
+  background: var(--lsp-bg);
+  color: var(--lsp-fg);
+  font-family: "DotGothic16", "Courier New", monospace;
+}
+
+/* --------------------------------------------------------------- メニュー項目 */
+
+/* 各ゲームの個性はメニュー項目のボタンだけで表現する（src/style.cssの方針）。
+   星空を思わせる暗い地に、細かな点を散らす。 */
+.game-entry[data-game="lyric-sphere"] {
+  border-radius: 0.35rem;
+  background-color: #0d1628;
+  background-image: radial-gradient(circle, rgba(200, 235, 240, 0.5) 1px, transparent 1px);
+  background-size: 1.5rem 1.5rem;
+  color: #cfe4f2;
+}
+
+.game-entry[data-game="lyric-sphere"]:hover:not(:disabled) {
+  transform: none;
+  border-color: #39c5bb;
+  background-color: #14223a;
+}
+
+/* --------------------------------------------------------------- タイトル画面 */
+
+#lsp-title-logo {
+  font-size: 2.8rem;
+  margin: 0 0 1rem;
+  letter-spacing: 0.08em;
+  color: var(--lsp-lit);
+  text-shadow: 0 0 12px rgba(57, 197, 187, 0.35);
+}
+
+/* トークン未設定時のエラー表示欄も兼ねる（既存4作と同じ役割分担）。ジャイロ許可が
+   拒否された理由の表示にも使い回す（3.5。無反応の行き止まりを作らない）。 */
+.lsp-title-desc {
+  font-size: 1rem;
+  line-height: 1.8;
+  margin: 0 0 1.5rem;
+  min-height: 1.8em;
+  color: #9fc0d8;
+}
+
+.lsp-setting-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.lsp-setting-label {
+  font-size: 0.85rem;
+  letter-spacing: 0.15em;
+  color: #9fc0d8;
+}
+
+.lsp-song-select {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  min-width: 16rem;
+  max-width: 90vw;
+  color: var(--lsp-fg);
+  background: #101b30;
+  border: 1px solid rgba(150, 200, 235, 0.38);
+  border-radius: 0.25rem;
+}
+
+.lsp-song-select:disabled {
+  opacity: 0.5;
+}
+
+.lsp-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  color: #9fc0d8;
+  cursor: pointer;
+}
+
+.lsp-toggle input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--lsp-lit);
+}
+
+.lsp-toggle input:disabled + span {
+  opacity: 0.45;
+}
+
+#lsp-btn-start {
+  font-family: inherit;
+  font-size: 1.2rem;
+  letter-spacing: 0.2em;
+  padding: 0.7rem 2.5rem;
+  color: #070d18;
+  background: var(--lsp-lit);
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+#lsp-btn-start:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.lsp-btn-secondary {
+  font-family: inherit;
+  font-size: 0.9rem;
+  letter-spacing: 0.15em;
+  margin-top: 1rem;
+  padding: 0.5rem 1.5rem;
+  color: #9fc0d8;
+  background: transparent;
+  border: 1px solid rgba(150, 200, 235, 0.38);
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+/* ----------------------------------------------------------------- プレイ画面 */
+
+/* .screen既定の中央寄せ・padding 2remを上書きし、天球とステータス帯を積む（4.1）。 */
+#lsp-screen-play {
+  justify-content: flex-start;
+  padding: 0;
+  gap: 0;
+}
+
+/* 天球のキャンバスを画面全面に置き、その上に最小限のHUDを重ねる（4.1）。 */
+.lsp-sky-wrap {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+.lsp-sky {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* 指定しないとブラウザがスクロールと解釈し、pointermoveが打ち切られて視点操作
+     そのものが成立しない（Lyric-Searchの盤面と同じ理由）。 */
+  touch-action: none;
+}
+
+/* 4.1-1 方角インジケータ。次フレーズの開始セルが画面外にある間、そちらの辺に
+   三角形を出す。不透明度はJS側がズレ角に応じて設定する（4.4）。
+   これは演出ではなく必須の機能であり、これが無ければプレイヤーは見当違いの方角を
+   眺めたまま曲を終える。 */
+.lsp-arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms linear;
+}
+
+.lsp-arrow--left {
+  left: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 0.7rem solid transparent;
+  border-bottom: 0.7rem solid transparent;
+  border-right: 1rem solid var(--lsp-lit);
+}
+
+.lsp-arrow--right {
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 0.7rem solid transparent;
+  border-bottom: 0.7rem solid transparent;
+  border-left: 1rem solid var(--lsp-lit);
+}
+
+.lsp-arrow--top {
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 0.7rem solid transparent;
+  border-right: 0.7rem solid transparent;
+  border-bottom: 1rem solid var(--lsp-lit);
+}
+
+.lsp-arrow--bottom {
+  bottom: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 0.7rem solid transparent;
+  border-right: 0.7rem solid transparent;
+  border-top: 1rem solid var(--lsp-lit);
+}
+
+/* 正面リセット（3.5）。ジャイロON時のみ表示する（原点を取り直すために必須）。 */
+.lsp-btn-recenter {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  display: none;
+  font-family: inherit;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.8rem;
+  color: var(--lsp-fg);
+  background: rgba(16, 27, 48, 0.85);
+  border: 1px solid rgba(150, 200, 235, 0.38);
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.lsp-btn-recenter--visible {
+  display: block;
+}
+
+/* 4.1-2 ステータス（画面下端・細い帯）。 */
+.lsp-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  width: 100%;
+  height: var(--lsp-status-h);
+  font-size: 0.8rem;
+  color: #9fc0d8;
+  background: rgba(10, 18, 33, 0.9);
+  border-top: 1px solid rgba(120, 180, 220, 0.18);
+}
+
+.lsp-status-item {
+  white-space: nowrap;
+}
+
+.lsp-btn-pause {
+  font-family: inherit;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.7rem;
+  color: var(--lsp-fg);
+  background: transparent;
+  border: 1px solid rgba(150, 200, 235, 0.38);
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+/* 開発用。既定は非表示とし、index.tsがDEV環境でのみ表示・配線する（4.7）。 */
+.lsp-debug {
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  background: rgba(10, 18, 33, 0.9);
+}
+
+.lsp-debug--visible {
+  display: flex;
+}
+
+.lsp-debug-seek {
+  flex: 1;
+  accent-color: var(--lsp-lit);
+}
+
+.lsp-debug-counts {
+  font-size: 0.7rem;
+  color: #9fc0d8;
+  white-space: nowrap;
+}
+
+/* ----------------------------------------------------------------- リザルト */
+
+.lsp-result-title {
+  margin: 0;
+  font-size: 1.2rem;
+  letter-spacing: 0.2em;
+  color: #9fc0d8;
+}
+
+.lsp-result-score {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 2.6rem;
+  color: var(--lsp-lit);
+}
+
+/* 3.8 全天図。天頂を中心、水平線を外周とする円形の投影。見なかった方角は空白と
+   して残る。これが本作の持ち帰りの絵であるため、リザルトの主役として大きく置く。 */
+.lsp-skymap {
+  display: block;
+  width: min(42vh, 90vw);
+  height: min(42vh, 90vw);
+  border-radius: 50%;
+}
+
+/* #lsp-media（画面右下固定の楽曲情報バナー）とボタンが重なるため、ボタン群を
+   バナーの手前で止める（Lyric-Searchと同じ対応）。 */
+#lsp-screen-result .result-buttons {
+  margin-top: 1rem;
+  margin-bottom: 5rem;
+}
+
+#lsp-btn-retry,
+#lsp-btn-title {
+  font-family: inherit;
+  font-size: 1rem;
+  letter-spacing: 0.15em;
+  padding: 0.6rem 1.6rem;
+  color: var(--lsp-fg);
+  background: transparent;
+  border: 1px solid rgba(150, 200, 235, 0.38);
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------- 横長固定（4.5） */
+
+/* screen.orientation.lock()は全画面時に限られ、iOS Safariは非対応であるため、
+   案内オーバーレイが現実解である（4.5）。 */
+.lsp-rotate-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  color: var(--lsp-fg);
+  background: var(--lsp-bg);
+}
+
+@media (orientation: portrait) {
+  #game-lyric-sphere.game-section--active .lsp-rotate-hint {
+    display: flex;
+  }
+}
+
+/* --------------------------------------------------------------- バナー（7章） */
+
+#lsp-media {
+  position: fixed;
+  right: 0;
+  bottom: 2.5rem;
+  z-index: 100;
+  font-size: 0.75rem;
+  background: transparent;
+  /* TextAlive側が確保する動画プレースホルダ領域（常に空）が、見えないまま大きな
+     透明領域としてタップを奪う実機不具合への対策（既存2作と同じ対応）。 */
+  pointer-events: none;
+}
+
+#lsp-media .textalive-banner {
+  pointer-events: auto;
+}
+
+/* #lsp-mediaは#app直下にあり.game-sectionとは連動しない独立要素のため、隠さずに
+   放置すると他ゲームへ移った後もこの曲のバナーが残る（既存2作と同じ扱い）。 */
+#lsp-media.lsp-media--hidden {
+  display: none;
+}
+
+/* 読み込み中にdisplay:noneで要素サイズを0にするとSDK側の位置追従処理が壊れるため
+   （歌詞コンソールで実機確認）、visibility:hiddenを使う。 */
+#lsp-media.lsp-media--reloading {
+  visibility: hidden;
+}
