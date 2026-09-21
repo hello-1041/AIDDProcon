@@ -26,6 +26,9 @@
       <!-- 単語探し（lyric-search）専用の第4のPlayerインスタンス用メディア要素。
            他3作とグローバルIDを分離し、独立して音声再生・バナー表示を行う。 -->
       <div id="ls-media"></div>
+      <!-- Lyric-Sphere（lyric-sphere）専用の第5のPlayerインスタンス用メディア要素。
+           他4作とグローバルIDを分離し、独立して音声再生・バナー表示を行う。 -->
+      <div id="lsp-media"></div>
 
       <section id="screen-menu" class="screen screen--active">
         <h1 id="menu-logo">GAME MENU</h1>
@@ -49,6 +52,11 @@
           <li>
             <button class="game-entry" data-game="lyric-search">
               <span class="game-entry-title">Lyric-Search</span>
+            </button>
+          </li>
+          <li>
+            <button class="game-entry" data-game="lyric-sphere">
+              <span class="game-entry-title">Lyric-Sphere</span>
             </button>
           </li>
           <li>
@@ -272,6 +280,100 @@
             <button id="ls-btn-title">TITLE</button>
           </div>
         </section>
+      </div>
+
+      <div id="game-lyric-sphere" class="game-section">
+        <section id="lsp-screen-title" class="screen">
+          <h1 id="lsp-title-logo">Lyric-Sphere</h1>
+          <!-- トークン未設定時のエラー表示欄（既存4作と同じ扱い）。ジャイロ許可が
+               拒否されたときの理由表示にも使い回す（製造計画書3.5・4.7）。 -->
+          <p class="lsp-title-desc"></p>
+
+          <div class="lsp-setting-group">
+            <label for="lsp-song-select" class="lsp-setting-label">Song</label>
+            <!-- 選曲プルダウン。valueでtextalive.SONGSの添字と直結させる。曲名・
+                 アーティスト名はSONGSと同じ順・同じ表記で並べること（4.7）。 -->
+            <select id="lsp-song-select" class="lsp-song-select" disabled>
+              <option value="0">こたえて / imie</option>
+              <option value="1">アフター・ザ・カーテン / Rulmry</option>
+              <option value="2">シャッターチャンス / 夜未アガリ</option>
+              <option value="3">世界最後の音楽隊 / 夏山よつぎ×ど～ぱみん</option>
+              <option value="4">トリツクロジー / 鶴三</option>
+              <option value="5">TAKEOVER / Twinfield</option>
+            </select>
+          </div>
+
+          <!-- ジャイロ操作のトグル（3.5）。許可要求はこのcheckboxのchangeハンドラと
+               同じコールスタックで呼ぶ必要がある（iOSはユーザー操作起点でなければ
+               DeviceOrientationEvent.requestPermissionを通さない）。 -->
+          <div class="lsp-setting-group">
+            <label class="lsp-toggle">
+              <input type="checkbox" id="lsp-gyro-toggle" />
+              <span>端末の向きで見回す</span>
+            </label>
+          </div>
+
+          <button id="lsp-btn-start" disabled>START</button>
+          <button id="lsp-btn-menu" class="lsp-btn-secondary">EXIT</button>
+        </section>
+
+        <section id="lsp-screen-play" class="screen">
+          <!-- 天球。画面全面に置き、その上に最小限のHUDを重ねる（4.1）。 -->
+          <div class="lsp-sky-wrap">
+            <canvas id="lsp-sky" class="lsp-sky"></canvas>
+
+            <!-- 方角インジケータ（4.1）。次フレーズの開始セルが画面外にある間、
+                 そちらの辺に出す。演出ではなく必須の機能。 -->
+            <div class="lsp-arrow lsp-arrow--left" data-side="left"></div>
+            <div class="lsp-arrow lsp-arrow--right" data-side="right"></div>
+            <div class="lsp-arrow lsp-arrow--top" data-side="top"></div>
+            <div class="lsp-arrow lsp-arrow--bottom" data-side="bottom"></div>
+
+            <!-- ジャイロON時のみ表示する正面リセット（3.5）。プレイ中に座り直せば
+                 必要になる。 -->
+            <button id="lsp-btn-recenter" class="lsp-btn-recenter">正面リセット</button>
+          </div>
+
+          <div class="lsp-status">
+            <span class="lsp-status-item">点灯率: <span id="lsp-hud-score">0%</span></span>
+            <span class="lsp-status-item" id="lsp-hud-time">0:00 / 0:00</span>
+            <button id="lsp-btn-pause" class="lsp-btn-pause">⏸ 一時停止</button>
+          </div>
+
+          <!-- 開発用（DEV環境限定、index.tsが表示・配線を行う。本番ビルドでは
+               CSSの既定値display:noneのまま）。シークバーは10章の暫定パラメータ
+               調整に、状態カウンタはRECLAIM_MSの調整に使う（4.7）。 -->
+          <div id="lsp-debug" class="lsp-debug">
+            <input
+              type="range"
+              id="lsp-debug-seek"
+              class="lsp-debug-seek"
+              min="0"
+              max="0"
+              value="0"
+              step="1"
+            />
+            <span id="lsp-debug-counts" class="lsp-debug-counts">P0 / L0 / X0</span>
+          </div>
+        </section>
+
+        <section id="lsp-screen-result" class="screen">
+          <h2 class="lsp-result-title">RESULT</h2>
+          <p id="lsp-result-score" class="lsp-result-score">0%</p>
+          <!-- 全天図（3.8）。天頂を中心、水平線を外周とする円形の投影。
+               見なかった方角は空白として残る。 -->
+          <canvas id="lsp-skymap" class="lsp-skymap"></canvas>
+          <div class="result-buttons">
+            <button id="lsp-btn-retry">RETRY</button>
+            <button id="lsp-btn-title">TITLE</button>
+          </div>
+        </section>
+
+        <!-- 縦持ち時の案内（4.5）。screen.orientation.lock()は全画面時に限られ、
+             iOS Safariは非対応であるため、案内オーバーレイが現実解である。 -->
+        <div class="lsp-rotate-hint">
+          <p>端末を横向きにしてください</p>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

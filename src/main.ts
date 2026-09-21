@@ -3,6 +3,7 @@ import { init as initMizukiRhythm } from "./games/mizuki-rhythm/index.ts";
 import { init as initBlockKuzushi } from "./games/block-kuzushi/index.ts";
 import { init as initLyricConsole } from "./games/lyric-console/index.ts";
 import { init as initLyricSearch } from "./games/lyric-search/index.ts";
+import { init as initLyricSphere } from "./games/lyric-sphere/index.ts";
 
 const screenMenuEl = document.querySelector<HTMLElement>("#screen-menu")!;
 
@@ -14,6 +15,7 @@ const GAME_INIT: Record<string, (onBack: () => void) => void> = {
   "block-kuzushi": initBlockKuzushi,
   "lyric-console": initLyricConsole,
   "lyric-search": initLyricSearch,
+  "lyric-sphere": initLyricSphere,
 };
 
 const gameSectionEl: Record<string, HTMLElement> = {};

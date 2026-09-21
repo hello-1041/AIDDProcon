@@ -13,6 +13,7 @@
 | ブロック崩し | 歌詞ブロックをボールで崩し、歌詞をすべて集めてクリアを目指すブロック崩し |
 | Lyric-Console | 歌詞をターミナル風にタイプライター表示する、鑑賞体験寄りのコンソール演出 |
 | Lyric-Search | 歌われている歌詞の語を、5×5の文字盤からなぞって探し出す単語探しゲーム |
+| Lyric-Sphere | 自分を囲む半球（プラネタリウムのドーム）に歌詞が現れ、見回して読む鑑賞体験。見た方角の文字だけが灯り、曲の終わりに星座として残る |
 
 ## 技術スタック
 
@@ -55,12 +56,13 @@ npm run preview  # ビルド結果のプレビュー
 │       ├── mizuki-rhythm/   # 水切リズム
 │       ├── block-kuzushi/   # ブロック崩し
 │       ├── lyric-console/   # Lyric-Console
-│       └── lyric-search/    # Lyric-Search
+│       ├── lyric-search/    # Lyric-Search
+│       └── lyric-sphere/    # Lyric-Sphere
 ├── public/               # 静的ファイル（favicon等）
 └── index.html            # 各ゲームの画面（DOM）をすべて内包するシングルページ
 ```
 
-各ゲームは `game.ts`（ロジック）・`render.ts` または `ui.ts`（描画・DOM操作）・`textalive.ts`（TextAlive連携）・`index.ts`（初期化エントリ）という構成で揃えている。Lyric-Search のみ、盤面の文字配置（対象語が必ず盤面上に存在するよう保証する処理）を `board.ts` に分けている。
+各ゲームは `game.ts`（ロジック）・`render.ts` または `ui.ts`（描画・DOM操作）・`textalive.ts`（TextAlive連携）・`index.ts`（初期化エントリ）という構成で揃えている。文字の配置を扱う2作は、その部分を単体で検証できるよう別ファイルに分けている（Lyric-Search の `board.ts`、Lyric-Sphere の `sphere.ts`）。Lyric-Sphere はさらに、投影の正しさを描画から切り離して確かめるため `view.ts` を持つ。
 
 ## ドキュメント
 
